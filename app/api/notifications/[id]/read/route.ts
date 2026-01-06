@@ -35,7 +35,7 @@ export async function POST(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Verify notification belongs to user
     const notification = await prisma.notification.findFirst({
