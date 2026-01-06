@@ -1,9 +1,8 @@
-// ===== 2. app/layout.tsx =====
-// Clean layout without inline scripts
-
+// app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
 import GoogleTranslate from "@/components/GoogleTranslate";
+import { TranslationProvider } from "@/app/context/TranslationContext";
 
 export const metadata: Metadata = {
   title: "Bybit App Global - Crypto Trading Platform",
@@ -28,7 +27,10 @@ export default function RootLayout({
         {/* Google Translate - Client-side only, no hydration issues */}
         <GoogleTranslate />
         
-        {children}
+        {/* Wrap children with TranslationProvider */}
+        <TranslationProvider>
+          {children}
+        </TranslationProvider>
       </body>
     </html>
   );
