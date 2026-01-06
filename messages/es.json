@@ -1,0 +1,44 @@
+{
+  "common": {
+    "deposit": "Depositar",
+    "withdraw": "Retirar",
+    "transfer": "Transferir",
+    "convert": "Convertir",
+    "account": "Cuenta",
+    "active": "Activo",
+    "available": "Disponible",
+    "home": "Inicio",
+    "markets": "Mercados",
+    "trade": "Comercio",
+    "earn": "Ganar",
+    "assets": "Activos",
+    "signUp": "Registrarse",
+    "login": "Iniciar sesión",
+    "email": "Correo electrónico",
+    "mobile": "Número móvil",
+    "password": "Contraseña",
+    "or": "o",
+    "continueWith": "Continuar con",
+    "google": "Google",
+    "telegram": "Telegram",
+    "loginWithAccount": "Iniciar sesión con cuenta",
+    "applyNow": "Aplicar ahora",
+    "translating": "Traduciendo..."
+  },
+  "wallet": {
+    "totalBalance": "Balance Total",
+    "spotWallet": "Cartera Spot",
+    "fundingWallet": "Cartera de Fondos",
+    "derivativesWallet": "Cartera de Derivados"
+  },
+  "trading": {
+    "buy": "Comprar",
+    "sell": "Vender",
+    "price": "Precio",
+    "amount": "Cantidad",
+    "total": "Total",
+    "market": "Mercado",
+    "limit": "Límite",
+    "stopLimit": "Stop Límite"
+  }
+}

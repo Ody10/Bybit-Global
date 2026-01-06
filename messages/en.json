@@ -1,0 +1,44 @@
+{
+  "common": {
+    "deposit": "Deposit",
+    "withdraw": "Withdraw",
+    "transfer": "Transfer",
+    "convert": "Convert",
+    "account": "Account",
+    "active": "Active",
+    "available": "Available",
+    "home": "Home",
+    "markets": "Markets",
+    "trade": "Trade",
+    "earn": "Earn",
+    "assets": "Assets",
+    "signUp": "Sign Up",
+    "login": "Login",
+    "email": "Email",
+    "mobile": "Mobile Number",
+    "password": "Password",
+    "or": "or",
+    "continueWith": "Continue with",
+    "google": "Google",
+    "telegram": "Telegram",
+    "loginWithAccount": "Login with account",
+    "applyNow": "Apply Now",
+    "translating": "Translating..."
+  },
+  "wallet": {
+    "totalBalance": "Total Balance",
+    "spotWallet": "Spot Wallet",
+    "fundingWallet": "Funding Wallet",
+    "derivativesWallet": "Derivatives Wallet"
+  },
+  "trading": {
+    "buy": "Buy",
+    "sell": "Sell",
+    "price": "Price",
+    "amount": "Amount",
+    "total": "Total",
+    "market": "Market",
+    "limit": "Limit",
+    "stopLimit": "Stop Limit"
+  }
+}

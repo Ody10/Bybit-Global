@@ -1,0 +1,60 @@
+/* Your existing code stays the same: */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0d0d0e;
+  --foreground: #ffffff;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+
+/* ADD THESE LINES AT THE END: */
+
+/* ===== GOOGLE TRANSLATE - COMPLETELY HIDDEN ===== */
+#google_translate_element {
+  display: none !important;
+}
+
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+  position: static !important;
+}
+
+.goog-te-banner-frame.skiptranslate {
+  display: none !important;
+}
+
+.skiptranslate,
+.goog-te-gadget,
+.goog-logo-link {
+  display: none !important;
+}
+
+body > .skiptranslate {
+  display: none !important;
+}
+
+iframe.skiptranslate {
+  display: none !important;
+}
+
+/* Prevent Google Translate from breaking layout */
+body > .skiptranslate iframe {
+  display: none !important;
+}
+
+.goog-te-spinner-pos {
+  display: none !important;
+}

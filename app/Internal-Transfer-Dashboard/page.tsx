@@ -1,0 +1,348 @@
+'use client';
+
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+
+type TransferType = 'email' | 'mobile' | 'uid';
+
+interface CountryCode {
+  code: string;
+  dial: string;
+  name: string;
+}
+
+const countryCodes: CountryCode[] = [
+  { code: 'US', dial: '+1', name: 'United States' },
+  { code: 'GB', dial: '+44', name: 'United Kingdom' },
+  { code: 'CN', dial: '+86', name: 'China' },
+  { code: 'IN', dial: '+91', name: 'India' },
+  { code: 'JP', dial: '+81', name: 'Japan' },
+  { code: 'KR', dial: '+82', name: 'South Korea' },
+  { code: 'DE', dial: '+49', name: 'Germany' },
+  { code: 'FR', dial: '+33', name: 'France' },
+  { code: 'AU', dial: '+61', name: 'Australia' },
+  { code: 'BR', dial: '+55', name: 'Brazil' },
+  { code: 'RU', dial: '+7', name: 'Russia' },
+  { code: 'SG', dial: '+65', name: 'Singapore' },
+  { code: 'HK', dial: '+852', name: 'Hong Kong' },
+  { code: 'AE', dial: '+971', name: 'UAE' },
+  { code: 'NG', dial: '+234', name: 'Nigeria' },
+];
+
+function InternalTransferDashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const coinSymbol = searchParams.get('coin') || 'A';
+  const coinName = searchParams.get('name') || 'Vaulta';
+
+  const [transferType, setTransferType] = useState<TransferType>('email');
+  const [address, setAddress] = useState('');
+  const [amount, setAmount] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState<'funding' | 'unified' | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<CountryCode>(countryCodes[0]);
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+
+  // Mock data - would come from API in real app
+  const minWithdrawal = 1;
+  const dailyLimit = '1,000,000/1,000,000';
+  const fundingBalance = 0;
+  const unifiedBalance = 0;
+
+  const handleMaxClick = () => {
+    const maxAmount = selectedAccount === 'funding' ? fundingBalance : unifiedBalance;
+    setAmount(maxAmount.toString());
+  };
+
+  const handleWithdraw = () => {
+    // Implement withdrawal logic
+    console.log('Internal Transfer:', { coinSymbol, transferType, address, amount, selectedAccount });
+  };
+
+  const getPlaceholder = () => {
+    switch (transferType) {
+      case 'email':
+        return 'Please select an address';
+      case 'mobile':
+        return 'Please select an address';
+      case 'uid':
+        return 'Please enter UID';
+      default:
+        return 'Please select an address';
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0d0d0d] text-white">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-[#0d0d0d] px-4 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="text-white p-2 -ml-2"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-lg font-semibold">{coinSymbol}-Internal Transfer</h1>
+          <div className="flex items-center gap-3">
+            <button className="text-gray-400">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+            <button className="text-gray-400">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M3 10h18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 pb-32">
+        {/* Transfer Type Tabs */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setTransferType('email')}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              transferType === 'email'
+                ? 'bg-[#2a2a2a] text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Email
+          </button>
+          <button
+            onClick={() => setTransferType('mobile')}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              transferType === 'mobile'
+                ? 'bg-[#2a2a2a] text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Mobile
+          </button>
+          <button
+            onClick={() => setTransferType('uid')}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              transferType === 'uid'
+                ? 'bg-[#2a2a2a] text-white'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            UID
+          </button>
+        </div>
+
+        {/* Address Input Section */}
+        <div className="mb-6">
+          {transferType === 'mobile' ? (
+            <div className="flex gap-2">
+              {/* Country Code Selector */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                  className="bg-[#1a1a1a] rounded-lg py-4 px-4 flex items-center gap-2 h-full"
+                >
+                  <span className="text-white">{selectedCountry.dial}</span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className={`text-gray-400 transition-transform ${showCountryDropdown ? 'rotate-180' : ''}`}
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                {showCountryDropdown && (
+                  <div className="absolute top-full left-0 mt-1 bg-[#252525] rounded-lg overflow-hidden z-20 min-w-[200px] max-h-[300px] overflow-y-auto">
+                    {countryCodes.map((country) => (
+                      <button
+                        key={country.code}
+                        onClick={() => {
+                          setSelectedCountry(country);
+                          setShowCountryDropdown(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-[#2a2a2a] flex justify-between items-center"
+                      >
+                        <span className="text-white">{country.name}</span>
+                        <span className="text-gray-500">{country.dial}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Phone Number Input */}
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  placeholder={getPlaceholder()}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="w-full bg-[#1a1a1a] rounded-lg py-4 px-4 pr-12 text-white placeholder-gray-500 outline-none focus:ring-1 focus:ring-gray-600"
+                />
+                <button className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={getPlaceholder()}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full bg-[#1a1a1a] rounded-lg py-4 px-4 pr-12 text-white placeholder-gray-500 outline-none focus:ring-1 focus:ring-gray-600"
+              />
+              <button className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Amount Section */}
+        <div className="mb-6">
+          <label className="text-gray-400 text-sm mb-2 block">Amount</label>
+          <div className="relative">
+            <input
+              type="text"
+              placeholder={`Min. Withdrawal Amount: ${minWithdrawal}`}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-[#1a1a1a] rounded-lg py-4 px-4 pr-20 text-white placeholder-gray-500 outline-none focus:ring-1 focus:ring-gray-600"
+            />
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+              <span className="text-white">{coinSymbol}</span>
+              <button
+                onClick={handleMaxClick}
+                className="text-[#f7a600] font-medium hover:text-[#ffb824]"
+              >
+                Max
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Select Account Section */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1">
+              <span className="text-gray-400 text-sm">Select account (0)</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </div>
+            <div className="flex items-center gap-1 text-gray-400">
+              <span className="text-sm">0</span>
+              <button className="text-gray-400">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v8M8 12h8" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Funding Account */}
+          <label className="flex items-center justify-between py-3 cursor-pointer">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectedAccount === 'funding'}
+                onChange={() => setSelectedAccount(selectedAccount === 'funding' ? null : 'funding')}
+                className="w-5 h-5 rounded border-gray-600 bg-transparent checked:bg-yellow-500 checked:border-yellow-500"
+              />
+              <span className="text-white">Funding</span>
+            </div>
+            <span className="text-white">{fundingBalance}</span>
+          </label>
+
+          {/* Unified Trading Account */}
+          <label className="flex items-center justify-between py-3 cursor-pointer">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                checked={selectedAccount === 'unified'}
+                onChange={() => setSelectedAccount(selectedAccount === 'unified' ? null : 'unified')}
+                className="w-5 h-5 rounded border-gray-600 bg-transparent checked:bg-yellow-500 checked:border-yellow-500"
+              />
+              <span className="text-white">Unified Trading</span>
+            </div>
+            <span className="text-white">{unifiedBalance}</span>
+          </label>
+        </div>
+
+        {/* Note Section */}
+        <div className="mb-6">
+          <div className="text-gray-500 text-sm mb-2">Note:</div>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-gray-400 text-sm">Daily Remaining Limit</span>
+            <div className="flex items-center gap-2">
+              <span className="text-white text-sm">{dailyLimit} USDT</span>
+              <button className="text-[#f7a600] text-sm hover:text-[#ffb824]">
+                Manage Limit →
+              </button>
+            </div>
+          </div>
+          <a href="#" className="text-[#f7a600] text-sm hover:text-[#ffb824]">
+            Need help? Please visit our Help Center.
+          </a>
+        </div>
+      </div>
+
+      {/* Bottom Section - Fixed */}
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0d0d0d] px-4 py-4 border-t border-gray-800">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-gray-400 text-sm">Withdrawal Fees</span>
+          <span className="text-[#00b894] font-medium">Zero Fees</span>
+        </div>
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-gray-400 text-sm">Amount Received</span>
+          <span className="text-white font-medium">{amount || '0'} {coinSymbol}</span>
+        </div>
+        <button
+          onClick={handleWithdraw}
+          disabled={!address || !amount || parseFloat(amount) < minWithdrawal}
+          className="w-full bg-[#8b7355] text-white font-semibold py-4 rounded-lg hover:bg-[#a08060] transition-colors disabled:bg-[#4a3d2a] disabled:text-gray-500 disabled:cursor-not-allowed"
+        >
+          Withdraw
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function InternalTransferDashboard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-yellow-500 border-t-transparent"></div>
+      </div>
+    }>
+      <InternalTransferDashboardContent />
+    </Suspense>
+  );
+}

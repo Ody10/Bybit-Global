@@ -1,0 +1,1053 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model - stores all registered users
+model User {
+  id              String    @id // 10-digit UID starting with 4
+  name            String?   // User's full name (optional)
+  email           String    @unique
+  phoneNumber     String?   @unique // Phone number (optional)
+  password        String    // Hashed password
+  referralCode    String?   // Referral code used during registration
+  myReferralCode  String?   @unique // User's own referral code to share
+  isEmailVerified Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
+  
+  // Profile information
+  avatar          String?   // Profile picture URL
+  country         String?   // User's country
+  dateOfBirth     DateTime? // Date of birth
+  
+  // Security settings
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?  // Secret for 2FA (encrypted)
+  antiPhishingCode String?  // Anti-phishing code for emails
+  fundPassword     String?  // Fund password (hashed)
+  
+  // Google 2FA Settings
+  googleAuthEnabled  Boolean @default(false)
+  googleAuthSecret   String? // Google Authenticator secret key
+  googleAuthBackupCodes String? // JSON array of backup codes
+  
+  // Account status
+  isActive        Boolean   @default(true)
+  isBanned        Boolean   @default(false)
+  banReason       String?
+  
+  // KYC status
+  kycStatus       String    @default("NOT_STARTED")
+  kycLevel        Int       @default(0)
+  
+  // Wallet derivation index
+  walletIndex     Int       @default(0)
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastLoginAt     DateTime?
+  
+  // Relations
+  verificationCodes VerificationCode[]
+  sessions          Session[]
+  loginHistory      LoginHistory[]
+  wallets           Wallet[]
+  transactions      Transaction[]
+  userBalances      UserBalance[]
+  deposits          Deposit[]
+  withdrawals       Withdrawal[]
+  passwordResets    PasswordReset[]
+  googleAuthLogs    GoogleAuthLog[]
+  notifications     Notification[]
+  
+  // Trading relations
+  orders            Order[]
+  trades            Trade[]
+  positions         Position[]
+  
+  // Referral relations - User can refer many users
+  referralsGiven    Referral[] @relation("Referrer")
+  // User can only be referred by one person
+  referralReceived  Referral?  @relation("ReferredUser")
+  
+  // Unified Trading & Internal Transfer relations (NEW - ADDED)
+  unifiedTradingBalances UnifiedTradingBalance[]
+  internalTransfers      InternalTransfer[]
+  
+  @@index([email])
+  @@index([phoneNumber])
+  @@index([referralCode])
+  @@index([myReferralCode])
+}
+
+// User Balance - tracks balance for each currency
+model UserBalance {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Currency info
+  currency        String   // BTC, ETH, USDT, USDC, USCT, etc.
+  chain           String   // ETH, BSC, TRX, etc.
+  network         String   @default("mainnet")
+  
+  // Balance breakdown
+  totalBalance    Float    @default(0)    // Total balance
+  available       Float    @default(0)    // Available for trading/withdrawal
+  locked          Float    @default(0)    // Locked in pending orders
+  frozen          Float    @default(0)    // Frozen by admin
+  
+  // For staking/earning
+  staked          Float    @default(0)    // Amount staked
+  earning         Float    @default(0)    // Earning rewards
+  
+  // USD value (updated periodically)
+  usdValue        Float    @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([userId, currency, chain])
+  @@index([userId])
+  @@index([currency])
+}
+
+// Deposit transactions
+model Deposit {
+  id              String    @id @default(cuid())
+  
+  // Deposit ID for user reference (e.g., DEP20231228001234)
+  depositId       String    @unique
+  
+  // User reference - supports both internal ID and UID
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userUid         String    // User's 10-digit UID for easy lookup
+  
+  // Transaction details
+  currency        String    // BTC, ETH, USDT, etc.
+  chain           String    // ETH, BSC, TRX, SOL, etc.
+  network         String    @default("mainnet")
+  
+  amount          Float     // Deposit amount
+  fee             Float     @default(0) // Network fee (if any)
+  netAmount       Float     // Amount after fee
+  
+  // Blockchain info
+  txHash          String?   // Transaction hash from mainnet
+  txUrl           String?   // Full explorer URL (e.g., https://etherscan.io/tx/0x...)
+  fromAddress     String    // Sender address
+  toAddress       String    // Deposit address (user's wallet)
+  
+  // Confirmation tracking
+  confirmations   Int       @default(0)
+  requiredConfirmations Int @default(6)
+  
+  // Status
+  status          String    @default("PENDING") // PENDING, CONFIRMING, COMPLETED, FAILED, CANCELLED
+  
+  // Block info
+  blockNumber     BigInt?
+  blockHash       String?
+  blockTimestamp  DateTime? // When the block was mined
+  
+  // Explorer info for Asset History display
+  explorerName    String?   // e.g., "Etherscan", "BscScan", "Tronscan"
+  explorerUrl     String?   // Base explorer URL
+  
+  // Additional info
+  memo            String?   // For coins that require memo (XRP, etc.)
+  tag             String?   // Destination tag
+  note            String?   // Internal note
+  
+  // Time tracking (like Bybit shows)
+  submittedAt     DateTime  @default(now()) // When deposit was first detected
+  confirmedAt     DateTime? // When required confirmations reached
+  completedAt     DateTime? // When credited to user balance
+  failedAt        DateTime? // If failed, when it failed
+  
+  // Processing time in seconds (for analytics)
+  processingTime  Int?      // Time from submitted to completed
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([userUid])
+  @@index([depositId])
+  @@index([txHash])
+  @@index([status])
+  @@index([currency])
+  @@index([chain])
+  @@index([createdAt])
+  @@index([submittedAt])
+}
+
+// Withdrawal transactions
+model Withdrawal {
+  id              String    @id @default(cuid())
+  
+  // Withdrawal ID for user reference (e.g., WD20231228001234)
+  withdrawalId    String    @unique
+  
+  // User reference - supports both internal ID and UID
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userUid         String    // User's 10-digit UID for easy lookup
+  
+  // Transaction details
+  currency        String    // BTC, ETH, USDT, etc.
+  chain           String    // ETH, BSC, TRX, SOL, etc.
+  network         String    @default("mainnet")
+  
+  amount          Float     // Requested amount
+  fee             Float     @default(0) // Withdrawal fee
+  netAmount       Float     // Amount user receives (amount - fee)
+  
+  // Destination
+  toAddress       String    // Withdrawal destination address
+  fromAddress     String?   // Our hot wallet address
+  
+  // Blockchain info
+  txHash          String?   // Transaction hash from mainnet (after broadcast)
+  txUrl           String?   // Full explorer URL (e.g., https://etherscan.io/tx/0x...)
+  blockNumber     BigInt?
+  blockHash       String?
+  blockTimestamp  DateTime? // When the block was mined
+  
+  // Confirmation tracking
+  confirmations   Int       @default(0)
+  requiredConfirmations Int @default(6)
+  
+  // Explorer info for Asset History display
+  explorerName    String?   // e.g., "Etherscan", "BscScan", "Tronscan"
+  explorerUrl     String?   // Base explorer URL
+  
+  // Status tracking
+  status          String    @default("PENDING") 
+  // PENDING - Awaiting approval
+  // PROCESSING - Being processed
+  // AWAITING_CONFIRMATION - Sent to blockchain, awaiting confirmations
+  // COMPLETED - Successfully completed
+  // FAILED - Failed
+  // CANCELLED - Cancelled by user or admin
+  // REJECTED - Rejected by admin
+  
+  // Approval info
+  requiresApproval Boolean  @default(true)
+  approvedBy      String?   // Admin who approved
+  approvedAt      DateTime?
+  rejectedBy      String?   // Admin who rejected
+  rejectedAt      DateTime?
+  rejectionReason String?
+  
+  // Security verification
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  googleAuthVerified Boolean @default(false)
+  googleAuthVerifiedAt DateTime?
+  fundPasswordVerified Boolean @default(false)
+  fundPasswordVerifiedAt DateTime?
+  
+  // Risk assessment
+  riskLevel       String    @default("LOW") // LOW, MEDIUM, HIGH
+  riskScore       Int       @default(0)
+  
+  // Additional info
+  memo            String?   // For coins that require memo
+  tag             String?   // Destination tag
+  note            String?   // User note
+  adminNote       String?   // Admin internal note
+  
+  // Time tracking (like Bybit shows)
+  submittedAt     DateTime  @default(now()) // When user submitted withdrawal
+  processedAt     DateTime? // When processing started
+  broadcastAt     DateTime? // When sent to blockchain
+  confirmedAt     DateTime? // When confirmations reached
+  completedAt     DateTime? // When fully completed
+  cancelledAt     DateTime? // If cancelled
+  failedAt        DateTime? // If failed
+  
+  // Processing time in seconds (for analytics)
+  processingTime  Int?      // Time from submitted to completed
+  
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([userUid])
+  @@index([withdrawalId])
+  @@index([txHash])
+  @@index([status])
+  @@index([currency])
+  @@index([chain])
+  @@index([createdAt])
+  @@index([submittedAt])
+}
+
+// Password Reset requests
+model PasswordReset {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Reset token
+  token           String    @unique
+  
+  // Email/Phone used for reset
+  email           String?
+  phoneNumber     String?
+  
+  // Verification
+  verificationCode String?  // 6-digit code sent via email/SMS
+  codeExpiresAt   DateTime?
+  codeVerified    Boolean   @default(false)
+  
+  // Token status
+  expiresAt       DateTime
+  used            Boolean   @default(false)
+  usedAt          DateTime?
+  
+  // Security info
+  ipAddress       String?
+  userAgent       String?
+  
+  // Status
+  status          String    @default("PENDING") // PENDING, VERIFIED, COMPLETED, EXPIRED, CANCELLED
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([token])
+  @@index([email])
+  @@index([status])
+}
+
+// Google Authenticator / 2FA Logs
+model GoogleAuthLog {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Action type
+  action          String    // SETUP, ENABLE, DISABLE, VERIFY, BACKUP_USED, RESET
+  
+  // Verification info
+  code            String?   // The code used (for audit)
+  success         Boolean   @default(false)
+  failureReason   String?
+  
+  // Device/Session info
+  ipAddress       String?
+  userAgent       String?
+  deviceInfo      String?
+  location        String?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// Google Auth Setup - temporary storage during setup process
+model GoogleAuthSetup {
+  id              String    @id @default(cuid())
+  
+  userId          String    @unique // One setup at a time per user
+  
+  // Temporary secret (before user confirms)
+  tempSecret      String
+  
+  // Backup codes (generated during setup)
+  backupCodes     String    // JSON array of backup codes
+  
+  // Setup status
+  step            Int       @default(1) // 1: Secret generated, 2: QR shown, 3: Verified
+  
+  expiresAt       DateTime  // Setup expires after 10 minutes
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([userId])
+}
+
+// Verification codes for email and phone verification
+model VerificationCode {
+  id          String   @id @default(cuid())
+  email       String?
+  phoneNumber String?
+  code        String   // 6-digit verification code
+  type        String   // EMAIL_VERIFICATION, PASSWORD_RESET, WITHDRAWAL, LOGIN_2FA, etc.
+  expiresAt   DateTime
+  used        Boolean  @default(false)
+  
+  // Optional relation to user
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Additional context
+  metadata    String?  // JSON for additional data (withdrawal ID, etc.)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([email])
+  @@index([phoneNumber])
+  @@index([code])
+  @@index([email, code])
+  @@index([email, type])
+}
+
+// User sessions for authentication
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token        String   @unique
+  refreshToken String?  @unique
+  
+  ipAddress    String?
+  userAgent    String?
+  deviceInfo   String?
+  
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([userId])
+  @@index([token])
+}
+
+// Login history for security tracking
+model LoginHistory {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  ipAddress   String
+  userAgent   String?
+  deviceInfo  String?
+  location    String?  // Geolocation based on IP
+  
+  // Login method
+  method      String   @default("PASSWORD") // PASSWORD, GOOGLE_AUTH, BACKUP_CODE, SOCIAL
+  
+  status      String   // SUCCESS, FAILED, BLOCKED, 2FA_REQUIRED
+  failReason  String?  // Reason for failed login
+  
+  // 2FA verification
+  required2FA Boolean  @default(false)
+  passed2FA   Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@index([ipAddress])
+}
+
+// User wallets for different cryptocurrencies
+model Wallet {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Chain information
+  chain          String   // BTC, ETH, TRX, SOL, etc.
+  network        String   @default("mainnet") // mainnet, testnet
+  currency       String   // BTC, ETH, USDT, etc. (same as chain for native tokens)
+  
+  // Address information (derived from HD wallet)
+  address        String
+  derivationPath String?
+  addressIndex   Int      @default(0)
+  
+  // Balances (deprecated - use UserBalance instead)
+  balance        Float    @default(0)
+  available      Float    @default(0) // Available for withdrawal
+  locked         Float    @default(0) // Locked in orders
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@unique([userId, chain, network])
+  @@index([userId])
+  @@index([address])
+}
+
+// Master wallet derivation tracking (for admin)
+model WalletDerivation {
+  id              String   @id @default(cuid())
+  chain           String
+  network         String   @default("mainnet")
+  lastIndex       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([chain, network])
+}
+
+// UID Counter for generating sequential 10-digit UIDs
+model UidCounter {
+  id          String   @id @default("uid_counter")
+  lastUid     BigInt   @default(4000000000) // Start from 4000000001
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Deposit ID Counter for generating sequential deposit IDs
+model DepositIdCounter {
+  id          String   @id @default("deposit_counter")
+  lastId      BigInt   @default(0) // DEP + date + sequence
+  date        String   @default("20231228") // Current date for reset
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Withdrawal ID Counter for generating sequential withdrawal IDs
+model WithdrawalIdCounter {
+  id          String   @id @default("withdrawal_counter")
+  lastId      BigInt   @default(0) // WD + date + sequence
+  date        String   @default("20231228") // Current date for reset
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Transaction history (general ledger)
+model Transaction {
+  id            String    @id @default(cuid())
+  
+  // Transaction ID for display (e.g., TXN20231228001234)
+  transactionId String?   @unique
+  
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userUid       String?   // User's 10-digit UID for easy lookup
+  
+  type          String    // DEPOSIT, WITHDRAWAL, TRANSFER, TRADE, REWARD, FEE, STAKE, UNSTAKE
+  status        String    // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED
+  
+  currency      String
+  chain         String?
+  network       String?   @default("mainnet")
+  amount        Float
+  fee           Float     @default(0)
+  
+  // Balance changes
+  balanceBefore Float?
+  balanceAfter  Float?
+  
+  // Reference to specific transaction type
+  depositId     String?   // Reference to Deposit
+  withdrawalId  String?   // Reference to Withdrawal
+  
+  // Blockchain info for Asset History display
+  txHash        String?   // Blockchain transaction hash from mainnet
+  txUrl         String?   // Full explorer URL
+  fromAddress   String?
+  toAddress     String?
+  
+  // Explorer info
+  explorerName  String?   // e.g., "Etherscan", "BscScan"
+  explorerUrl   String?   // Base explorer URL
+  
+  // Additional info
+  description   String?
+  metadata      String?   // JSON string for additional data
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+  
+  @@index([userId])
+  @@index([userUid])
+  @@index([transactionId])
+  @@index([type])
+  @@index([status])
+  @@index([currency])
+  @@index([txHash])
+  @@index([createdAt])
+  @@index([depositId])
+  @@index([withdrawalId])
+}
+
+// Referral system
+model Referral {
+  id              String   @id @default(cuid())
+  
+  // The user who referred someone (one user can refer many)
+  referrerId      String
+  referrer        User     @relation("Referrer", fields: [referrerId], references: [id])
+  
+  // The user who was referred (one user can only be referred once)
+  referredUserId  String   @unique
+  referredUser    User     @relation("ReferredUser", fields: [referredUserId], references: [id])
+  
+  code            String   // The referral code used
+  
+  // Rewards
+  referrerReward  Float    @default(0)
+  referredReward  Float    @default(0)
+  
+  status          String   @default("PENDING") // PENDING, ACTIVE, COMPLETED, EXPIRED
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([referrerId])
+  @@index([code])
+}
+
+// System settings and configurations
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  type      String   // STRING, NUMBER, BOOLEAN, JSON
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Withdrawal fee configuration per currency/chain
+model WithdrawalFee {
+  id              String   @id @default(cuid())
+  
+  currency        String
+  chain           String
+  network         String   @default("mainnet")
+  
+  // Fee settings
+  fixedFee        Float    @default(0)     // Fixed fee amount
+  percentageFee   Float    @default(0)     // Percentage fee (0.01 = 1%)
+  minFee          Float    @default(0)     // Minimum fee
+  maxFee          Float?                    // Maximum fee (null = no max)
+  
+  // Withdrawal limits
+  minWithdrawal   Float    @default(0)     // Minimum withdrawal amount
+  maxWithdrawal   Float?                    // Maximum withdrawal (null = no max)
+  dailyLimit      Float?                    // Daily withdrawal limit per user
+  
+  // Status
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([currency, chain, network])
+  @@index([currency])
+}
+
+// Deposit address pool (pre-generated addresses)
+model DepositAddress {
+  id              String    @id @default(cuid())
+  
+  chain           String
+  network         String    @default("mainnet")
+  
+  address         String
+  derivationPath  String?
+  addressIndex    Int
+  
+  // Assignment
+  userId          String?   // Assigned to user (null = available)
+  assignedAt      DateTime?
+  
+  // Status
+  isActive        Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@unique([chain, network, address])
+  @@index([chain, network, userId])
+  @@index([userId])
+}
+
+// In-app notifications for deposits, withdrawals, and other events
+model Notification {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Notification type and category
+  type          String   // DEPOSIT_PENDING, DEPOSIT_CONFIRMED, WITHDRAWAL_REQUEST, WITHDRAWAL_SUCCESS, WITHDRAWAL_FAILED, SYSTEM, SECURITY
+  category      String   @default("TRANSACTION") // TRANSACTION, SECURITY, SYSTEM, MARKETING
+  
+  // Content
+  title         String
+  message       String
+  
+  // Transaction reference (if applicable)
+  transactionId String?
+  txHash        String?
+  
+  // Token/Asset info (if applicable)
+  token         String?
+  amount        String?
+  chain         String?
+  address       String?
+  
+  // Status
+  isRead        Boolean  @default(false)
+  isEmailSent   Boolean  @default(false)
+  isPushSent    Boolean  @default(false)
+  
+  // Priority for display
+  priority      String   @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  
+  // Expiration (optional)
+  expiresAt     DateTime?
+  
+  // Metadata for additional data
+  metadata      String?  // JSON string for extra data like txUrl, explorerUrl, depositId, withdrawalId, etc.
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  readAt        DateTime?
+  
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([type])
+  @@index([createdAt])
+}
+
+
+// ============================================
+// TRADING SYSTEM MODELS
+// ============================================
+
+// Trading Pair Configuration
+model TradingPair {
+  id              String   @id @default(cuid())
+  symbol          String   @unique // e.g., "BTCUSDT", "ETHUSDT"
+  baseAsset       String   // e.g., "BTC", "ETH"
+  quoteAsset      String   // e.g., "USDT", "USDC"
+  type            String   @default("SPOT") // SPOT, FUTURES, PERPETUAL
+  
+  // Pricing
+  lastPrice       Float    @default(0)
+  markPrice       Float    @default(0) // For futures
+  indexPrice      Float    @default(0) // For futures
+  price24hHigh    Float    @default(0)
+  price24hLow     Float    @default(0)
+  price24hOpen    Float    @default(0)
+  price24hChange  Float    @default(0) // Percentage
+  volume24h       Float    @default(0)
+  volumeQuote24h  Float    @default(0)
+  
+  // Trading Rules
+  minOrderQty     Float    @default(0.0001)
+  maxOrderQty     Float    @default(1000000)
+  minOrderValue   Float    @default(1) // Min order value in quote asset
+  tickSize        Float    @default(0.01) // Price precision
+  stepSize        Float    @default(0.0001) // Quantity precision
+  
+  // Futures specific
+  maxLeverage     Int      @default(100)
+  maintenanceMargin Float  @default(0.005) // 0.5%
+  
+  // Status
+  isActive        Boolean  @default(true)
+  isTradingEnabled Boolean @default(true)
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  orders          Order[]
+  trades          Trade[]
+  positions       Position[]
+  
+  @@index([symbol])
+  @@index([baseAsset])
+  @@index([type])
+  @@index([isActive])
+}
+
+// Trading Order
+model Order {
+  id              String   @id @default(cuid())
+  orderId         String   @unique // e.g., "ORD20251229000001"
+  
+  // User
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Trading pair
+  tradingPairId   String
+  tradingPair     TradingPair @relation(fields: [tradingPairId], references: [id])
+  symbol          String   // e.g., "BTCUSDT"
+  
+  // Order details
+  type            String   // MARKET, LIMIT, STOP_LIMIT, STOP_MARKET
+  side            String   // BUY, SELL
+  positionSide    String?  // LONG, SHORT (for futures)
+  
+  // Quantities
+  quantity        Float    // Order quantity
+  filledQty       Float    @default(0)
+  remainingQty    Float    // Remaining to fill
+  
+  // Prices
+  price           Float?   // Limit price (null for market orders)
+  stopPrice       Float?   // Stop trigger price
+  avgFillPrice    Float?   // Average fill price
+  
+  // For futures
+  leverage        Int      @default(1)
+  marginType      String   @default("CROSS") // CROSS, ISOLATED
+  reduceOnly      Boolean  @default(false)
+  closePosition   Boolean  @default(false)
+  
+  // Costs
+  fee             Float    @default(0)
+  feeCurrency     String   @default("USDT")
+  
+  // Status
+  status          String   @default("NEW") // NEW, PARTIALLY_FILLED, FILLED, CANCELLED, REJECTED, EXPIRED
+  timeInForce     String   @default("GTC") // GTC, IOC, FOK
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  filledAt        DateTime?
+  cancelledAt     DateTime?
+  
+  // Related trades
+  trades          Trade[]
+  
+  @@index([userId])
+  @@index([symbol])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, symbol])
+  @@index([userId, status])
+}
+
+// Trade (Filled order or partial fill)
+model Trade {
+  id              String   @id @default(cuid())
+  tradeId         String   @unique // e.g., "TRD20251229000001"
+  
+  // User
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Order
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id])
+  
+  // Trading pair
+  tradingPairId   String
+  tradingPair     TradingPair @relation(fields: [tradingPairId], references: [id])
+  symbol          String
+  
+  // Trade details
+  side            String   // BUY, SELL
+  positionSide    String?  // LONG, SHORT
+  
+  // Execution
+  price           Float    // Execution price
+  quantity        Float    // Executed quantity
+  quoteQty        Float    // price * quantity
+  
+  // Costs
+  fee             Float
+  feeCurrency     String
+  
+  // PnL (for closing trades)
+  realizedPnl     Float    @default(0)
+  
+  // Role
+  isMaker         Boolean  @default(false)
+  isBuyer         Boolean
+  
+  // Timestamps
+  executedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([orderId])
+  @@index([symbol])
+  @@index([executedAt])
+  @@index([userId, symbol])
+}
+
+// Position (For Futures Trading)
+model Position {
+  id              String   @id @default(cuid())
+  positionId      String   @unique // e.g., "POS20251229000001"
+  
+  // User
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Trading pair
+  tradingPairId   String
+  tradingPair     TradingPair @relation(fields: [tradingPairId], references: [id])
+  symbol          String
+  
+  // Position details
+  side            String   // LONG, SHORT
+  marginType      String   @default("CROSS") // CROSS, ISOLATED
+  leverage        Int      @default(1)
+  
+  // Size and entry
+  size            Float    // Position size (can be negative for short)
+  entryPrice      Float    // Average entry price
+  markPrice       Float    @default(0) // Current mark price
+  liquidationPrice Float?  // Liquidation price
+  
+  // Margin
+  margin          Float    // Initial margin
+  isolatedMargin  Float    @default(0) // For isolated margin mode
+  
+  // PnL
+  unrealizedPnl   Float    @default(0)
+  realizedPnl     Float    @default(0)
+  
+  // Status
+  isOpen          Boolean  @default(true)
+  
+  // Timestamps
+  openedAt        DateTime @default(now())
+  closedAt        DateTime?
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([userId, symbol, side])
+  @@index([userId])
+  @@index([symbol])
+  @@index([isOpen])
+  @@index([userId, isOpen])
+}
+
+// Order Book Entry (for matching engine simulation)
+model OrderBookEntry {
+  id              String   @id @default(cuid())
+  symbol          String
+  side            String   // BUY, SELL
+  price           Float
+  quantity        Float
+  orderCount      Int      @default(1)
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([symbol, side, price])
+  @@index([symbol])
+  @@index([symbol, side])
+}
+
+// Order ID Counter for generating sequential order IDs
+model OrderIdCounter {
+  id          String   @id @default("order_counter")
+  lastId      Int      @default(0)
+  date        String   @default("20251229")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Trade ID Counter for generating sequential trade IDs
+model TradeIdCounter {
+  id          String   @id @default("trade_counter")
+  lastId      Int      @default(0)
+  date        String   @default("20251229")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Position ID Counter for generating sequential position IDs
+model PositionIdCounter {
+  id          String   @id @default("position_counter")
+  lastId      Int      @default(0)
+  date        String   @default("20251229")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+// ============================================
+// UNIFIED TRADING & INTERNAL TRANSFERS
+// ============================================
+
+// Unified Trading Balance - Separate from Funding (UserBalance)
+// Users must transfer from Funding to Unified Trading
+// Deposits NEVER go directly here - only through internal transfers
+model UnifiedTradingBalance {
+  id            String   @id @default(cuid())
+  userId        String
+  currency      String   // BTC, ETH, USDT, etc.
+  
+  // Balance breakdown (same structure as UserBalance)
+  totalBalance  Float    @default(0)
+  available     Float    @default(0)
+  locked        Float    @default(0)    // Locked in open positions/orders
+  frozen        Float    @default(0)
+  
+  // For margin trading
+  marginBalance Float    @default(0)    // Used as margin
+  unrealizedPnl Float    @default(0)    // Unrealized P&L
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, currency])
+  @@index([userId])
+  @@index([currency])
+  @@map("unified_trading_balances")
+}
+
+// Internal Transfer record - tracks transfers between Funding and Unified Trading
+model InternalTransfer {
+  id            String   @id @default(cuid())
+  transferId    String   @unique // e.g., "TRF20251229000001"
+  
+  userId        String
+  userUid       String?  // User's 10-digit UID for easy lookup
+  
+  currency      String   // BTC, ETH, USDT, etc.
+  amount        Float
+  
+  fromAccount   String   // 'FUNDING' or 'UNIFIED_TRADING'
+  toAccount     String   // 'FUNDING' or 'UNIFIED_TRADING'
+  
+  // Status
+  status        String   @default("COMPLETED") // PENDING, COMPLETED, FAILED
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userUid])
+  @@index([transferId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("internal_transfers")
+}
+
+// Transfer ID Counter for generating sequential transfer IDs
+model TransferIdCounter {
+  id          String   @id @default("transfer_counter")
+  lastId      Int      @default(0)
+  date        String   @default("20251229")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
