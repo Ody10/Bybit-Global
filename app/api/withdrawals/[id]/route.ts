@@ -28,10 +28,11 @@ async function getUserIdFromToken(request: NextRequest): Promise<string | null> 
 // GET /api/withdrawals/[id] - Get withdrawal status
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const withdrawalId = params.id;
+    const { id } = await params;
+    const withdrawalId = id;
     
     if (!withdrawalId) {
       return NextResponse.json(
@@ -62,7 +63,7 @@ export async function GET(
 // DELETE /api/withdrawals/[id] - Cancel withdrawal
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromToken(request);
@@ -74,7 +75,8 @@ export async function DELETE(
       );
     }
     
-    const withdrawalId = params.id;
+    const { id } = await params;
+    const withdrawalId = id;
     
     if (!withdrawalId) {
       return NextResponse.json(
@@ -111,7 +113,7 @@ export async function DELETE(
 // PATCH /api/withdrawals/[id] - Admin actions (fail withdrawal)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
@@ -125,7 +127,8 @@ export async function PATCH(
       );
     }
     
-    const withdrawalId = params.id;
+    const { id } = await params;
+    const withdrawalId = id;
     
     if (!withdrawalId) {
       return NextResponse.json(
