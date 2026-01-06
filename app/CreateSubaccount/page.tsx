@@ -1,10 +1,13 @@
+//CreateSubaccount/page.tsx
+
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Check, ChevronDown } from 'lucide-react';
 
-export default function CreateSubaccount() {
+// Separate component that uses useSearchParams
+function CreateSubaccountContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const accountType = searchParams.get('type') || 'standard';
@@ -142,5 +145,23 @@ export default function CreateSubaccount() {
         </button>
       </div>
     </div>
+  );
+}
+
+// Main component wrapped with Suspense
+export default function CreateSubaccount() {
+  return (
+    <Suspense 
+      fallback={
+        <div className="min-h-screen bg-[#0d0d0d] text-white flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#f7a600]"></div>
+            <p className="text-gray-400">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <CreateSubaccountContent />
+    </Suspense>
   );
 }
