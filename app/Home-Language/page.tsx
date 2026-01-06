@@ -1,3 +1,5 @@
+//app/Home-Language/page.tsx
+
 'use client';
 
 import React from 'react';
@@ -5,6 +7,9 @@ import { ArrowLeft, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/app/context/TranslationContext';
 import { languages } from '@/app/context/TranslationContext';
+
+// Disable static generation for this page
+export const dynamic = 'force-dynamic';
 
 export default function HomeLanguagePage() {
   const router = useRouter();
