@@ -1,5 +1,5 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
+
 
 // app/api/translate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
@@ -195,3 +195,4 @@ export async function GET() {
     apiKeyConfigured: !!DEEPL_API_KEY,
   });
 }
+

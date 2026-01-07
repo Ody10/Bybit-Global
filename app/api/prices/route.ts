@@ -1,5 +1,5 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
+
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
@@ -97,3 +97,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

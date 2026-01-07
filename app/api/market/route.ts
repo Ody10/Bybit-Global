@@ -1,5 +1,5 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
+
 
 // app/api/market/route.ts
 export async function GET() {
@@ -13,3 +13,4 @@ export async function GET() {
     return Response.json({ error: 'Failed to fetch' }, { status: 500 });
   }
 }
+
