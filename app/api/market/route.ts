@@ -1,3 +1,6 @@
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 // app/api/market/route.ts
 export async function GET() {
   try {

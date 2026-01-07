@@ -37,7 +37,7 @@ const EXPLORER_CONFIG: { [key: string]: { name: string; txUrl: string } } = {
 // GET /api/transactions/[id] - Get transaction details
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromToken(request);
@@ -51,7 +51,8 @@ export async function GET(
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type'); // DEPOSIT or WITHDRAWAL
-    const transactionId = params.id;
+    const { id } = await params; // Add await here!
+    const transactionId = id;
 
     if (!transactionId) {
       return NextResponse.json(

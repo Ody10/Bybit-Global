@@ -1,3 +1,6 @@
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 //f app/api/admin/credit-deposit/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';

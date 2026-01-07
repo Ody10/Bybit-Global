@@ -1,4 +1,7 @@
 // app/api/bybit/ticker/route.js
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);

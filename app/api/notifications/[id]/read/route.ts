@@ -23,7 +23,7 @@ async function getUserIdFromToken(request: NextRequest): Promise<string | null> 
 // POST /api/notifications/[id]/read - Mark notification as read
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getUserIdFromToken(request);
@@ -35,7 +35,7 @@ export async function POST(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
 
     // Verify notification belongs to user
     const notification = await prisma.notification.findFirst({

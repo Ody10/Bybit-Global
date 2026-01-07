@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { ArrowLeft, Clock, Share2, X, Link2, Download, Mail, MoreHorizontal } from 'lucide-react';
@@ -287,7 +287,8 @@ const PnLAnalysisModal = ({
   );
 };
 
-export default function AssetCoinPage() {
+// Main component content wrapped in Suspense
+function AssetCoinContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const symbol = searchParams.get('symbol') || 'USDT';
@@ -557,5 +558,18 @@ export default function AssetCoinPage() {
         fiatRate={fiatRate}
       />
     </div>
+  );
+}
+
+// Main export with Suspense wrapper
+export default function AssetCoinPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0d0d0d] text-white flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#f7a600] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    }>
+      <AssetCoinContent />
+    </Suspense>
   );
 }

@@ -1,3 +1,6 @@
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 import { NextRequest, NextResponse } from 'next/server';
 import { runDepositMonitorCycle, scanChainForDeposits, updatePendingDepositConfirmations } from '@/lib/blockchain-scanner';
 import { scanBitcoinForDeposits, updateBTCConfirmations } from '@/lib/bitcoin-scanner';
