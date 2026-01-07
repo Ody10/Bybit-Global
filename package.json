@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "dev:backend": "next dev -p 3001",
-    "build": "next build",
-    "build:backend": "next build",
+    "build": "prisma generate && next build",
+    "build:backend": "prisma generate && next build",
     "build:mobile": "cross-env BUILD_MODE=mobile next build",
     "start": "next start",
     "start:backend": "next start -p 3001",
