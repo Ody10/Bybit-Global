@@ -1,5 +1,4 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+//app/api/user/transactions/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
