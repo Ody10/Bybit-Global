@@ -1,6 +1,7 @@
 // app/api/crypto/route.ts
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
+// REMOVE THIS LINE:
+// export const runtime = 'edge';
 
 export async function GET() {
   try {
