@@ -1,10 +1,11 @@
+//app/FundingDashboard/page.tsx - PART 1 OF 2
+
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useMarketPrices, getCoinPrice, formatBalance, convertUsdToFiat, getFiatRate } from '@/hooks/useMarketPrices';
 
 // CoinIcon component with fallback
 const CoinIcon = ({ symbol, size = 36 }: { symbol: string; size?: number }) => {
@@ -63,6 +64,60 @@ interface BalanceSummary {
   frozenUsdValue: number;
   btcValue: number;
 }
+
+// Fiat currency rates
+const fiatRates: Record<string, number> = {
+  USD: 1,
+  EUR: 0.86,
+  GBP: 0.79,
+  JPY: 156.50,
+  AUD: 1.52,
+  CAD: 1.43,
+  CHF: 0.89,
+  CNY: 7.25,
+  INR: 84.85,
+  KRW: 1425.00,
+  BRL: 5.98,
+  MXN: 20.15,
+  AED: 3.67,
+  SGD: 1.35,
+  HKD: 7.79,
+  NZD: 1.74,
+  SEK: 10.68,
+  NOK: 11.05,
+  DKK: 6.89,
+  PLN: 3.60,
+  ZAR: 18.25,
+  RUB: 96.50,
+  TRY: 34.95,
+  THB: 35.50,
+  IDR: 16125.00,
+  MYR: 4.47,
+  PHP: 58.25,
+  VND: 25420.00,
+  PKR: 278.50,
+  NGN: 1545.00,
+  EGP: 49.25,
+  ARS: 985.50,
+  SAR: 3.75,
+  COP: 4100,
+  CLP: 950,
+  PEN: 3.70,
+};
+
+// Format balance
+const formatBalance = (balance: number): string => {
+  if (balance === 0) return '0';
+  if (balance < 0.0001) return balance.toFixed(10).replace(/\.?0+$/, '');
+  if (balance < 1) return balance.toFixed(8).replace(/\.?0+$/, '');
+  if (balance < 1000) return balance.toFixed(6).replace(/\.?0+$/, '');
+  return balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// Get fiat rate
+const getFiatRate = (currency: string): number => {
+  return fiatRates[currency] || 1;
+};
 
 // Popular cryptocurrencies at top, then A-Z
 const cryptoList = [
@@ -131,6 +186,8 @@ const fiatList = [
 const mostUsedCurrencies = ['USD'];
 const otherCurrencies = fiatList.filter(f => f.code !== 'USD').map(f => f.code);
 
+// PART 2 OF 2 - Main Component (paste this after Part 1)
+
 export default function FundingDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'crypto' | 'fiat'>('crypto');
@@ -143,55 +200,38 @@ export default function FundingDashboard() {
   const [eyeOpen, setEyeOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Use market prices hook for real-time updates
-  const { prices, loading: pricesLoading } = useMarketPrices(5000);
-
   useEffect(() => {
     fetchBalances();
     const saved = localStorage.getItem('preferredCurrency');
     if (saved) setSelectedCurrency(saved);
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBalances, 30000);
+    return () => clearInterval(interval);
   }, []);
-
-  // Recalculate USD values when prices update
-  useEffect(() => {
-    if (Object.keys(prices).length > 0 && balances.length > 0) {
-      let totalUsd = 0;
-      let availableUsd = 0;
-      
-      const updatedBalances = balances.map(b => {
-        const price = prices[b.currency]?.price || b.price || 0;
-        const usdValue = b.totalBalance * price;
-        totalUsd += usdValue;
-        availableUsd += b.available * price;
-        return { ...b, usdValue, price };
-      });
-      
-      setBalances(updatedBalances);
-      
-      const btcPrice = prices['BTC']?.price || 87000;
-      setSummary(prev => prev ? {
-        ...prev,
-        totalUsdValue: totalUsd,
-        availableUsdValue: availableUsd,
-        btcValue: totalUsd / btcPrice,
-      } : null);
-    }
-  }, [prices]);
 
   const fetchBalances = async () => {
     try {
       const token = localStorage.getItem('auth_token');
       if (!token) {
+        console.log('No auth token found');
         setLoading(false);
         return;
       }
 
       const response = await fetch('/api/user/balances', {
-        headers: { 'Authorization': `Bearer ${token}` },
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store',
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Balances data:', data);
+        
         if (data.success) {
           // Use funding balances specifically
           const fundingBalances = data.funding?.balances || data.balances || [];
@@ -206,6 +246,9 @@ export default function FundingDashboard() {
           setBalances(fundingBalances);
           setSummary(fundingSummary);
         }
+      } else {
+        const errorData = await response.json();
+        console.error('Balance fetch failed:', response.status, errorData);
       }
     } catch (error) {
       console.error('Error fetching balances:', error);
@@ -437,7 +480,7 @@ export default function FundingDashboard() {
               .filter(b => b.totalBalance > 0)
               .map((balance) => (
                 <button
-                  key={`${balance.currency}-${balance.chain}`}
+                  key={`${balance.currency}-${balance.chain || 'default'}`}
                   onClick={() => handleCoinClick(balance.currency)}
                   className="w-full flex items-center justify-between py-4 border-b border-[#1a1a1a] hover:bg-[#1a1a1a] transition-colors"
                 >

@@ -7,7 +7,7 @@ type TabType = 'all' | 'deposit' | 'withdraw' | 'transfer' | 'p2p' | 'fiat';
 
 interface Transaction {
   id: string;
-  type: 'DEPOSIT' | 'WITHDRAWAL';
+  type: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER' | 'P2P' | 'FIAT';
   currency: string;
   chain: string;
   amount: number;
@@ -32,6 +32,7 @@ export default function AssetHistory() {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [availableAssets, setAvailableAssets] = useState<string[]>(['All Assets']);
 
   const tabs: { key: TabType; label: string }[] = [
@@ -50,8 +51,11 @@ export default function AssetHistory() {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const token = localStorage.getItem('auth_token');
       if (!token) {
+        setError('Please log in to view transactions');
         setLoading(false);
         return;
       }
@@ -63,8 +67,12 @@ export default function AssetHistory() {
         params.append('type', 'DEPOSIT');
       } else if (activeTab === 'withdraw') {
         params.append('type', 'WITHDRAWAL');
-      } else if (activeTab !== 'all') {
-        params.append('type', activeTab.toUpperCase());
+      } else if (activeTab === 'transfer') {
+        params.append('type', 'TRANSFER');
+      } else if (activeTab === 'p2p') {
+        params.append('type', 'P2P');
+      } else if (activeTab === 'fiat') {
+        params.append('type', 'FIAT');
       }
       
       if (selectedAsset !== 'All Assets') {
@@ -75,39 +83,64 @@ export default function AssetHistory() {
         params.append('status', selectedFilter.toUpperCase());
       }
 
-      const response = await fetch(`/api/user/transactions?${params.toString()}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      const apiUrl = `/api/user/transactions?${params.toString()}`;
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setTransactions(data.transactions || []);
-          
-          // Extract unique assets for filter
-          const assets = new Set<string>();
-          data.transactions?.forEach((tx: Transaction) => {
-            assets.add(tx.currency);
-          });
-          setAvailableAssets(['All Assets', ...Array.from(assets)]);
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Session expired. Please log in again.');
+          localStorage.removeItem('auth_token');
+          router.push('/login');
+          return;
         }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setTransactions(data.transactions || []);
+        
+        // Extract unique assets for filter
+        const assets = new Set<string>();
+        data.transactions?.forEach((tx: Transaction) => {
+          assets.add(tx.currency);
+        });
+        setAvailableAssets(['All Assets', ...Array.from(assets).sort()]);
+      } else {
+        setError(data.message || 'Failed to fetch transactions');
       }
     } catch (error) {
       console.error('Error fetching transactions:', error);
+      setError('Failed to load transactions. Please try again.');
+      // Set mock data for development
+      setTransactions([]);
     } finally {
       setLoading(false);
     }
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    try {
+      const date = new Date(dateStr);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    } catch {
+      return dateStr;
+    }
   };
 
   const getStatusText = (status: string, type: string) => {
@@ -145,7 +178,6 @@ export default function AssetHistory() {
   };
 
   const handleTransactionClick = (tx: Transaction) => {
-    // Navigate to details page with transaction info
     const params = new URLSearchParams({
       id: tx.id,
       type: tx.type,
@@ -246,6 +278,22 @@ export default function AssetHistory() {
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4">
+            <div className="w-24 h-24 mb-6 rounded-full bg-[#1a1a1a] flex items-center justify-center">
+              <svg className="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg text-gray-400 mb-2">Error Loading Transactions</h3>
+            <p className="text-sm text-gray-500 text-center max-w-xs mb-4">{error}</p>
+            <button 
+              onClick={fetchTransactions}
+              className="px-6 py-2 bg-[#f7a600] text-black rounded-full font-medium hover:bg-yellow-500 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
         ) : transactions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-4">
             <div className="w-24 h-24 mb-6 rounded-full bg-[#1a1a1a] flex items-center justify-center">
@@ -275,7 +323,9 @@ export default function AssetHistory() {
                 {/* Right side - Amount, Status, Arrow */}
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <div className="text-[15px] font-medium text-white">{tx.amount}</div>
+                    <div className="text-[15px] font-medium text-white">
+                      {tx.type === 'WITHDRAWAL' ? '-' : '+'}{tx.amount.toFixed(8)}
+                    </div>
                     <div className={`text-[13px] flex items-center justify-end gap-1.5 mt-1 ${getStatusColor(tx.status)}`}>
                       <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
                       {getStatusText(tx.status, tx.type)}
