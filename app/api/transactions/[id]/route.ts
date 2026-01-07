@@ -62,7 +62,6 @@ export async function GET(
     }
 
     let transaction: any = null;
-
     // Try to find as deposit
     if (!type || type === 'DEPOSIT') {
       const deposit = await prisma.deposit.findFirst({
