@@ -1,5 +1,6 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendDepositConfirmationEmail, verifySmtpConnection, BRAND_CONFIG } from '@/lib/email';

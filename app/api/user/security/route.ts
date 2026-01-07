@@ -1,5 +1,6 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 
 // app/api/user/security/route.ts
 import { NextRequest, NextResponse } from 'next/server';

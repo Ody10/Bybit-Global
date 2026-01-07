@@ -1,5 +1,6 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 
 //f app/api/admin/credit-deposit/route.ts
 
