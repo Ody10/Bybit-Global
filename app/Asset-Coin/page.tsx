@@ -1,10 +1,11 @@
+//app/Asset-Coin/page.tsx - PART 1 OF 2
+
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { ArrowLeft, Clock, Share2, X, Link2, Download, Mail, MoreHorizontal } from 'lucide-react';
-import { useMarketPrices, getCoinPrice, getCoinUsdValue, formatPrice } from '@/hooks/useMarketPrices';
 
 // Storage key for persistent currency
 const CURRENCY_STORAGE_KEY = 'selected_fiat_currency';
@@ -70,9 +71,7 @@ const TRADING_PAIRS: Record<string, string[]> = {
   USCT: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT'],
 };
 
-// ============================================
-// FORMAT WITH COMMAS - e.g., 1,000.00
-// ============================================
+// Format with commas
 const formatWithCommas = (value: number, decimals: number = 2): string => {
   return value.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
@@ -80,35 +79,37 @@ const formatWithCommas = (value: number, decimals: number = 2): string => {
   });
 };
 
-// ============================================
-// FORMAT FULL BALANCE - WITH COMMAS FOR LARGE NUMBERS
-// ============================================
+// Format full balance
 const formatFullBalance = (balance: number): string => {
   if (balance === 0) return '0';
   if (balance === null || balance === undefined || isNaN(balance)) return '0';
   
-  // For extremely small amounts (dust)
   if (balance > 0 && balance < 0.00000001) {
     return balance.toFixed(18).replace(/\.?0+$/, '');
   }
   
-  // For very small amounts
   if (balance > 0 && balance < 0.0001) {
     return balance.toFixed(12).replace(/\.?0+$/, '');
   }
   
-  // For small amounts
   if (balance < 1) {
     return balance.toFixed(8).replace(/\.?0+$/, '');
   }
   
-  // For medium amounts (1-999)
   if (balance < 1000) {
     return balance.toFixed(6).replace(/\.?0+$/, '');
   }
   
-  // For larger amounts - USE COMMAS
   return formatWithCommas(balance, 2);
+};
+
+// Format price
+const formatPrice = (price: number): string => {
+  if (price === 0) return '0';
+  if (price < 0.01) return price.toFixed(8).replace(/\.?0+$/, '');
+  if (price < 1) return price.toFixed(6).replace(/\.?0+$/, '');
+  if (price < 1000) return price.toFixed(2);
+  return formatWithCommas(price, 2);
 };
 
 // CoinIcon component
@@ -287,14 +288,18 @@ const PnLAnalysisModal = ({
   );
 };
 
+// PART 2 OF 2 - Main Component (paste this after Part 1)
+
 // Main component content wrapped in Suspense
 function AssetCoinContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const symbol = searchParams.get('symbol') || 'USDT';
   
-  const { prices, loading } = useMarketPrices(5000);
+  const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState({ total: 0, available: 0, locked: 0 });
+  const [coinPrice, setCoinPrice] = useState(0);
+  const [priceChange, setPriceChange] = useState(0);
   const [showPnLModal, setShowPnLModal] = useState(false);
   const [tradingPairs, setTradingPairs] = useState<Array<{ pair: string; price: number; change: number }>>([]);
   
@@ -310,62 +315,87 @@ function AssetCoinContent() {
 
   const fiatRate = getCurrencyRate(selectedCurrency);
   const coinMeta = COIN_METADATA[symbol] || { name: symbol, color: '#888888' };
-  const coinPrice = getCoinPrice(prices, symbol);
-  const usdValue = getCoinUsdValue(prices, symbol, balance.total);
+  const usdValue = balance.total * coinPrice;
   const fiatValue = usdValue * fiatRate;
   
   // Calculate P&L
   const avgCost = coinPrice * 0.98;
-  const pnlPercent = ((coinPrice - avgCost) / avgCost) * 100;
+  const pnlPercent = coinPrice > 0 ? ((coinPrice - avgCost) / avgCost) * 100 : 0;
   const pnlUsd = usdValue * (pnlPercent / 100);
   const pnlFiat = pnlUsd * fiatRate;
 
-  // Fetch user balance for this coin
+  // Fetch user balance and prices for this coin
   useEffect(() => {
-    const fetchBalance = async () => {
+    const fetchData = async () => {
       try {
         const token = localStorage.getItem('auth_token');
-        if (!token) return;
+        if (!token) {
+          console.log('No auth token found');
+          setLoading(false);
+          return;
+        }
 
         const response = await fetch('/api/user/balances', {
-          headers: { 'Authorization': `Bearer ${token}` },
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          cache: 'no-store',
         });
 
         if (response.ok) {
           const data = await response.json();
+          console.log('Balance data:', data);
+          
           if (data.success) {
-            const coinBalance = data.balances.find((b: any) => b.currency === symbol);
+            // Find the balance for this specific coin
+            const coinBalance = data.balances?.find((b: any) => b.currency === symbol);
+            
             if (coinBalance) {
               setBalance({
                 total: coinBalance.totalBalance || 0,
                 available: coinBalance.available || 0,
                 locked: coinBalance.locked || 0,
               });
+              setCoinPrice(coinBalance.price || 0);
+            }
+            
+            // Get prices from the API response
+            if (data.prices) {
+              setCoinPrice(data.prices[symbol] || 0);
+              
+              // Set up trading pairs with prices
+              const pairs = TRADING_PAIRS[symbol] || TRADING_PAIRS.default;
+              const pairData = pairs.map(pair => {
+                const baseSymbol = pair.replace('USDT', '').replace('USDC', '').replace('EUR', '').replace('GBP', '').replace('BTC', '');
+                const price = data.prices[baseSymbol] || 0;
+                return {
+                  pair,
+                  price: price,
+                  change: 0, // Can be calculated from historical data
+                };
+              });
+              setTradingPairs(pairData);
             }
           }
+        } else {
+          const errorData = await response.json();
+          console.error('Balance fetch failed:', response.status, errorData);
         }
       } catch (error) {
-        console.error('Error fetching balance:', error);
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchBalance();
+    fetchData();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
   }, [symbol]);
-
-  // Fetch trading pairs prices
-  useEffect(() => {
-    const pairs = TRADING_PAIRS[symbol] || TRADING_PAIRS.default;
-    const pairData = pairs.map(pair => {
-      const baseSymbol = pair.replace('USDT', '').replace('USDC', '').replace('EUR', '').replace('GBP', '').replace('BTC', '');
-      const priceData = prices[baseSymbol];
-      return {
-        pair,
-        price: priceData?.price || 0,
-        change: priceData?.change24h || 0,
-      };
-    });
-    setTradingPairs(pairData);
-  }, [prices, symbol]);
 
   const handleHistoryClick = () => {
     router.push(`/CoinDepositDashboard/AssetHistory?coin=${symbol}`);
@@ -420,14 +450,14 @@ function AssetCoinContent() {
 
       {/* Main Content */}
       <div className="px-4 py-6">
-        {/* Equity Section - With selected fiat currency and commas */}
+        {/* Equity Section */}
         <div className="mb-6">
           <div className="text-gray-400 text-sm mb-1">Equity</div>
           <div className="text-4xl font-bold mb-1">{formatFullBalance(balance.total)}</div>
           <div className="text-gray-400 text-sm">≈ {formatWithCommas(fiatValue, 2)} {selectedCurrency}</div>
         </div>
 
-        {/* P&L Stats - With selected fiat currency */}
+        {/* P&L Stats */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div>
             <div className="text-gray-400 text-sm mb-1">Cumulative PnL ({selectedCurrency})</div>
@@ -454,7 +484,7 @@ function AssetCoinContent() {
           </div>
         </div>
 
-        {/* Distribution Section - With selected fiat currency and commas */}
+        {/* Distribution Section */}
         <div className="mb-6 pb-6 border-b border-[#1a1a1a]">
           <h3 className="text-white font-semibold mb-4">Distribution</h3>
           <div className="flex items-center gap-4">
@@ -481,7 +511,7 @@ function AssetCoinContent() {
           </div>
         </div>
 
-        {/* Balance Details Section - With commas */}
+        {/* Balance Details Section */}
         <div className="mb-6 pb-6 border-b border-[#1a1a1a]">
           <h3 className="text-white font-semibold mb-4">Balance Details</h3>
           <div className="space-y-3">
@@ -504,19 +534,25 @@ function AssetCoinContent() {
         <div className="mb-6">
           <h3 className="text-white font-semibold mb-4">Trade</h3>
           <div className="grid grid-cols-2 gap-3">
-            {tradingPairs.map((pair) => (
-              <button
-                key={pair.pair}
-                onClick={() => handleTradePair(pair.pair)}
-                className="bg-[#1a1a1a] rounded-xl p-4 text-left hover:bg-[#252525] transition-colors"
-              >
-                <div className="text-gray-400 text-sm mb-1">{pair.pair}</div>
-                <div className="text-white font-semibold mb-1">{formatPrice(pair.price)}</div>
-                <div className={`text-sm ${pair.change >= 0 ? 'text-[#00c076]' : 'text-[#f6465d]'}`}>
-                  {pair.change >= 0 ? '+' : ''}{pair.change.toFixed(2)}%
-                </div>
-              </button>
-            ))}
+            {tradingPairs.length > 0 ? (
+              tradingPairs.map((pair) => (
+                <button
+                  key={pair.pair}
+                  onClick={() => handleTradePair(pair.pair)}
+                  className="bg-[#1a1a1a] rounded-xl p-4 text-left hover:bg-[#252525] transition-colors"
+                >
+                  <div className="text-gray-400 text-sm mb-1">{pair.pair}</div>
+                  <div className="text-white font-semibold mb-1">{formatPrice(pair.price)}</div>
+                  <div className={`text-sm ${pair.change >= 0 ? 'text-[#00c076]' : 'text-[#f6465d]'}`}>
+                    {pair.change >= 0 ? '+' : ''}{pair.change.toFixed(2)}%
+                  </div>
+                </button>
+              ))
+            ) : (
+              <div className="col-span-2 text-center text-gray-400 py-8">
+                No trading pairs available
+              </div>
+            )}
           </div>
         </div>
       </div>
