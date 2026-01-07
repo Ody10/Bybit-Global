@@ -1,4 +1,9 @@
 // app/api/bybit/instruments/route.js
+
+// Tell Next.js this can be statically generated
+export const dynamic = 'force-static';
+export const revalidate = false;
+
 export async function GET() {
   try {
     const response = await fetch(
