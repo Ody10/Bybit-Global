@@ -1,3 +1,5 @@
+//useMarketPrices.ts
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -95,8 +97,24 @@ export function useMarketPrices(updateInterval: number = 5000) {
 
   const fetchPrices = useCallback(async () => {
     try {
-      const response = await fetch('/api/crypto');
+      console.log('🔄 Fetching crypto prices...');
+      
+      // Use absolute URL in development to avoid routing issues
+      const apiUrl = typeof window !== 'undefined' 
+        ? `${window.location.origin}/api/crypto`
+        : '/api/crypto';
+      
+      const response = await fetch(apiUrl, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('📊 Data parsed successfully');
       
       if (data.retCode === 0 && data.result?.list) {
         const priceMap: MarketPrices = {};
@@ -129,12 +147,13 @@ export function useMarketPrices(updateInterval: number = 5000) {
           }
         }
         
+        console.log('✅ Prices updated:', Object.keys(priceMap).length, 'symbols');
         setPrices(priceMap);
         setError(null);
       }
     } catch (err) {
-      console.error('Error fetching prices:', err);
-      setError('Failed to fetch prices');
+      console.error('❌ Error fetching prices:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch prices');
     } finally {
       setLoading(false);
     }

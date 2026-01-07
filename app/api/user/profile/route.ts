@@ -1,11 +1,11 @@
-export const dynamic = 'force-static';
-export const revalidate = false;
+//app/api/user/profile/route.ts
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
-
-const prisma = new PrismaClient();
 
 // Helper function to mask email
 function maskEmail(email: string): string {
