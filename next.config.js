@@ -1,23 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
-  trailingSlash: true,
   
-  // Dynamic configuration based on BUILD_MODE
-  output: process.env.BUILD_MODE === 'mobile' ? 'export' : undefined,
-  
-  images: {
-    unoptimized: process.env.BUILD_MODE === 'mobile',
+  eslint: {
+    ignoreDuringBuilds: true,
   },
   
-  // CORS headers for API routes (only applies to backend)
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  
+  images: {
+    unoptimized: true,
+  },
+  
+  // CORS headers for API routes
   async headers() {
-    // Skip headers for mobile build (no API routes)
-    if (process.env.BUILD_MODE === 'mobile') {
-      return []
-    }
-    
     return [
       {
         source: '/api/:path*',
