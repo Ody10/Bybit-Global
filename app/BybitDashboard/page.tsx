@@ -1,4 +1,4 @@
-//app/BybitDashboard/page.tsx
+//BybitDashboard/page.tsx
 
 "use client";
 
@@ -442,59 +442,134 @@ export default function BybitDashboard() {
     { id: 6, image: '/Events/event6.png', title: 'Predict MNT', subtitle: 'Make your prediction now', category: 'Events' }
   ];
 
-  // Fetch user profile
+  // ============================================
+  // FIXED API FETCHING WITH PROPER ERROR HANDLING
+  // ============================================
+  
+  // Fetch user profile with improved error handling
   const fetchUserProfile = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      if (!token) return;
+      console.log('🔍 [BybitDashboard] Token check:', token ? '✅ Token exists' : '❌ No token');
+      
+      if (!token) {
+        console.error('❌ [BybitDashboard] No token found - redirecting to login');
+        router.push('/Home-Login');
+        return;
+      }
 
+      console.log('📡 [BybitDashboard] Fetching profile from:', window.location.origin + '/api/user/profile');
+      
       const response = await fetch('/api/user/profile', {
-        headers: { 'Authorization': `Bearer ${token}` },
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.user) {
-          const email = data.user.email || data.user.emailMasked || '';
-          setUserEmail(email);
-          // Get first letter of email
-          if (email && email.length > 0) {
-            setUserEmailFirstLetter(email[0].toUpperCase());
-          }
+      console.log('📥 [BybitDashboard] Profile response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ [BybitDashboard] Profile API Error:', errorData);
+        
+        if (response.status === 401) {
+          console.error('❌ [BybitDashboard] Unauthorized - token invalid');
+          localStorage.removeItem('auth_token');
+          router.push('/Home-Login');
+          return;
+        }
+        
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ [BybitDashboard] Profile loaded:', data);
+      
+      if (data.success && data.user) {
+        const email = data.user.email || data.user.emailMasked || '';
+        setUserEmail(email);
+        if (email && email.length > 0) {
+          setUserEmailFirstLetter(email[0].toUpperCase());
         }
       }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+    } catch (error: any) {
+      console.error('💥 [BybitDashboard] Profile fetch failed:', error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.error('🌐 [BybitDashboard] Network error - Is your backend running?');
+        console.error('Check: http://localhost:3000/api/user/profile');
+      }
     }
   };
 
-  // Fetch user balance
+  // Fetch user balance with improved error handling
   const fetchUserBalance = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      if (!token) return;
+      console.log('🔍 [BybitDashboard] Balance - Token check:', token ? '✅ Exists' : '❌ Missing');
+      
+      if (!token) {
+        console.error('❌ [BybitDashboard] No token for balance fetch');
+        return;
+      }
+
+      console.log('📡 [BybitDashboard] Fetching balance from:', window.location.origin + '/api/user/balances');
 
       const response = await fetch('/api/user/balances', {
-        headers: { 'Authorization': `Bearer ${token}` },
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store'
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setTotalBalance(data.summary?.totalUsdValue || 0);
-          setTodayPnL(data.summary?.todayPnL || 0);
+      console.log('📥 [BybitDashboard] Balance response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('❌ [BybitDashboard] Balance API Error:', errorData);
+        
+        if (response.status === 401) {
+          console.error('❌ [BybitDashboard] Unauthorized - redirecting');
+          localStorage.removeItem('auth_token');
+          router.push('/Home-Login');
+          return;
         }
+        
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-    } catch (error) {
-      console.error('Error fetching balance:', error);
+
+      const data = await response.json();
+      console.log('✅ [BybitDashboard] Balance loaded:', data);
+      
+      if (data.success) {
+        setTotalBalance(data.summary?.totalUsdValue || 0);
+        setTodayPnL(data.summary?.todayPnL || 0);
+      }
+    } catch (error: any) {
+      console.error('💥 [BybitDashboard] Balance fetch failed:', error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.error('🌐 [BybitDashboard] Network error - Is your backend running?');
+        console.error('Check: http://localhost:3000/api/user/balances');
+      }
     }
   };
 
   useEffect(() => {
-    // Initial load
-    fetchUserProfile();
-    fetchUserBalance();
-    setLoading(false);
+    // Initial load with proper async handling
+    const init = async () => {
+      console.log('🚀 [BybitDashboard] Initializing...');
+      await Promise.all([fetchUserProfile(), fetchUserBalance()]);
+      setLoading(false);
+      console.log('✅ [BybitDashboard] Initialization complete');
+    };
+    
+    init();
     
     // Banner rotation
     const bannerInterval = setInterval(() => {
@@ -506,7 +581,10 @@ export default function BybitDashboard() {
     }, 3000);
 
     // Refresh balance every 30 seconds
-    const balanceInterval = setInterval(fetchUserBalance, 30000);
+    const balanceInterval = setInterval(() => {
+      console.log('🔄 [BybitDashboard] Auto-refreshing balance...');
+      fetchUserBalance();
+    }, 30000);
     
     return () => {
       clearInterval(bannerInterval);
@@ -597,6 +675,9 @@ export default function BybitDashboard() {
       </div>
     </div>
   );
+
+  // Continue with rest of the component in next part//
+  // part 3 - JSX/UI Render
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white pb-20">
