@@ -1,4 +1,4 @@
-//app/AssetsDashboard/page.tsx
+//app/AssetsDashboard/page.tsx - PART 1 OF 2
 
 "use client";
 
@@ -6,7 +6,6 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Home, BarChart2, Activity, DollarSign, Wallet, ArrowDownLeft, ArrowUpRight, ArrowLeftRight, RefreshCw, ChevronDown, ChevronRight, Eye, EyeOff, List, Clock, HelpCircle, X, Check, Search, ChevronUp } from 'lucide-react';
-import { useMarketPrices } from '@/hooks/useMarketPrices';
 
 // Storage key for persistent currency
 const CURRENCY_STORAGE_KEY = 'selected_fiat_currency';
@@ -56,12 +55,14 @@ const fiatCurrencies = currencies.map(c => ({
 interface Balance {
   currency: string;
   chain?: string;
+  network?: string;
   totalBalance: number;
   available: number;
   locked: number;
   frozen: number;
   usdValue: number;
   price?: number;
+  chains?: any[];
 }
 
 interface UserProfile {
@@ -71,9 +72,7 @@ interface UserProfile {
   avatar: string | null;
 }
 
-// ============================================
-// FORMAT WITH COMMAS - e.g., 1,000.00
-// ============================================
+// Format with commas
 const formatWithCommas = (value: number, decimals: number = 2): string => {
   return value.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
@@ -81,33 +80,22 @@ const formatWithCommas = (value: number, decimals: number = 2): string => {
   });
 };
 
-// Format crypto balance with commas for large numbers
+// Format crypto balance
 const formatCryptoBalance = (balance: number): string => {
   if (balance === 0) return '0';
-  
-  if (balance < 0.0001) {
-    return balance.toFixed(10).replace(/\.?0+$/, '');
-  }
-  
-  if (balance < 1) {
-    return balance.toFixed(8).replace(/\.?0+$/, '');
-  }
-  
-  if (balance < 1000) {
-    return balance.toFixed(6).replace(/\.?0+$/, '');
-  }
-  
-  // Use commas for larger amounts
+  if (balance < 0.0001) return balance.toFixed(10).replace(/\.?0+$/, '');
+  if (balance < 1) return balance.toFixed(8).replace(/\.?0+$/, '');
+  if (balance < 1000) return balance.toFixed(6).replace(/\.?0+$/, '');
   return formatWithCommas(balance, 2);
 };
 
-// Get fiat rate by currency code
+// Get fiat rate
 const getCurrencyRate = (code: string): number => {
   const currency = currencies.find(c => c.code === code);
   return currency?.rate || 1;
 };
 
-// Coin Icon Component with fallback
+// Coin Icon Component
 const CoinIcon = ({ symbol, size = 32 }: { symbol: string; size?: number }) => {
   const [imgError, setImgError] = useState(false);
   
@@ -146,9 +134,7 @@ const CoinIcon = ({ symbol, size = 32 }: { symbol: string; size?: number }) => {
   );
 };
 
-// ============================================
-// SWITCH/CREATE ACCOUNT MODAL (Image 2)
-// ============================================
+// Switch Account Modal
 const SwitchAccountModal = ({
   isOpen,
   onClose,
@@ -186,7 +172,6 @@ const SwitchAccountModal = ({
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-end justify-center">
       <div className="w-full max-w-md bg-[#1a1a1a] rounded-t-3xl max-h-[85vh] overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
           <h2 className="text-white text-lg font-semibold">Switch/Create Account</h2>
           <button onClick={onClose}>
@@ -194,7 +179,6 @@ const SwitchAccountModal = ({
           </button>
         </div>
 
-        {/* Total Balance */}
         <div className="p-4 border-b border-[#2a2a2a]">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-white text-3xl font-bold">
@@ -211,11 +195,9 @@ const SwitchAccountModal = ({
           </div>
         </div>
 
-        {/* Main Account Section */}
         <div className="p-4">
           <div className="text-[#71757f] text-sm mb-3">Main Account</div>
           
-          {/* Account Card */}
           <div className="bg-[#252525] rounded-xl p-4 mb-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -225,7 +207,7 @@ const SwitchAccountModal = ({
                   </span>
                 </div>
                 <div>
-                  <div className="text-white text-sm font-medium">{userProfile?.emailMasked || 'ais***@****'}</div>
+                  <div className="text-white text-sm font-medium">{userProfile?.emailMasked || 'user***@****'}</div>
                   <div className="text-[#71757f] text-xs">UID: {userProfile?.uid || '000000000'}</div>
                 </div>
               </div>
@@ -237,7 +219,6 @@ const SwitchAccountModal = ({
               </div>
             </div>
             
-            {/* Expandable Account Details */}
             <button 
               onClick={() => setExpanded(!expanded)}
               className="w-full"
@@ -268,7 +249,6 @@ const SwitchAccountModal = ({
             </button>
           </div>
 
-          {/* No Subaccount Section */}
           <div className="flex flex-col items-center justify-center py-12">
             <div className="w-20 h-20 mb-4 relative">
               <div className="w-16 h-12 bg-[#3a3a3a] rounded-lg absolute top-2 left-2"></div>
@@ -278,7 +258,6 @@ const SwitchAccountModal = ({
           </div>
         </div>
 
-        {/* Bottom Buttons */}
         <div className="flex gap-3 p-4 border-t border-[#2a2a2a]">
           <button 
             onClick={onManageClick}
@@ -298,7 +277,7 @@ const SwitchAccountModal = ({
   );
 };
 
-// Deposit Modal Component
+// Deposit Modal
 const DepositModal = ({ 
   isOpen, 
   onClose,
@@ -313,31 +292,6 @@ const DepositModal = ({
   const router = useRouter();
   
   if (!isOpen) return null;
-
-  const handleDepositCrypto = () => {
-    onClose();
-    router.push('/CoinDepositDashboard');
-  };
-
-  const handleReceiveFromBybit = () => {
-    onClose();
-    router.push('/BybitPayDashboard');
-  };
-
-  const handleP2PTrading = () => {
-    onClose();
-    router.push('/P2P-Dashboard');
-  };
-
-  const handleBuyWithFiat = () => {
-    onClose();
-    router.push('/FiatDashboard');
-  };
-
-  const handleDepositFiat = () => {
-    onClose();
-    router.push('/Fiat-Currency-Dashboard');
-  };
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center pt-16">
@@ -354,7 +308,7 @@ const DepositModal = ({
             <div className="text-[#71757f] text-sm mb-3">Don&apos;t have crypto</div>
             
             <button 
-              onClick={handleDepositCrypto}
+              onClick={() => { onClose(); router.push('/CoinDepositDashboard'); }}
               className="w-full bg-[#2a2a2a] rounded-xl p-4 mb-3 flex items-center justify-between hover:bg-[#353535] transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -370,7 +324,7 @@ const DepositModal = ({
             </button>
 
             <button 
-              onClick={handleReceiveFromBybit}
+              onClick={() => { onClose(); router.push('/BybitPayDashboard'); }}
               className="w-full bg-[#2a2a2a] rounded-xl p-4 flex items-center justify-between hover:bg-[#353535] transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -393,16 +347,13 @@ const DepositModal = ({
                 onClick={onFiatChange}
                 className="flex items-center gap-1 bg-[#2a2a2a] rounded px-2 py-1 hover:bg-[#353535] transition-colors"
               >
-                <div className="w-4 h-4 rounded-full bg-[#3F51B5] flex items-center justify-center text-white text-[8px] font-bold">
-                  {selectedFiat[0]}
-                </div>
                 <span className="text-white text-xs">{selectedFiat}</span>
                 <ChevronDown className="w-3 h-3 text-white" />
               </button>
             </div>
 
             <button 
-              onClick={handleP2PTrading}
+              onClick={() => { onClose(); router.push('/P2P-Dashboard'); }}
               className="w-full bg-[#2a2a2a] rounded-xl p-4 mb-3 flex items-center justify-between hover:bg-[#353535] transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -418,7 +369,7 @@ const DepositModal = ({
             </button>
 
             <button 
-              onClick={handleBuyWithFiat}
+              onClick={() => { onClose(); router.push('/FiatDashboard'); }}
               className="w-full bg-[#2a2a2a] rounded-xl p-4 mb-3 flex items-center justify-between hover:bg-[#353535] transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -434,7 +385,7 @@ const DepositModal = ({
             </button>
 
             <button 
-              onClick={handleDepositFiat}
+              onClick={() => { onClose(); router.push('/Fiat-Currency-Dashboard'); }}
               className="w-full bg-[#2a2a2a] rounded-xl p-4 flex items-center justify-between hover:bg-[#353535] transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -455,9 +406,10 @@ const DepositModal = ({
   );
 };
 
+// PART 2 OF 2 - Main Component (paste this after Part 1)
+
 export default function AssetsDashboard() {
   const router = useRouter();
-  const { prices } = useMarketPrices(5000);
   
   const [loading, setLoading] = useState(true);
   const [navLoading, setNavLoading] = useState(false);
@@ -469,7 +421,6 @@ export default function AssetsDashboard() {
   const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
   const [fiatSearchQuery, setFiatSearchQuery] = useState('');
 
-  // Initialize currency from localStorage
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [selectedFiatCurrency, setSelectedFiatCurrency] = useState('EUR');
 
@@ -480,34 +431,41 @@ export default function AssetsDashboard() {
   const [totalUsdValue, setTotalUsdValue] = useState(0);
   const [btcValue, setBtcValue] = useState(0);
 
-  // Load saved currency from localStorage on mount
+  // Load saved currency
   useEffect(() => {
-    const savedCurrency = localStorage.getItem(CURRENCY_STORAGE_KEY);
-    if (savedCurrency) {
-      setSelectedCurrency(savedCurrency);
-    }
+    const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
+    if (saved) setSelectedCurrency(saved);
   }, []);
 
-  // Get fiat conversion rate
   const fiatRate = getCurrencyRate(selectedCurrency);
 
   const convertToFiat = (usdAmount: number) => {
     return formatWithCommas(usdAmount * fiatRate, 2);
   };
 
-  // Fetch user profile from API (which gets from Prisma)
+  // Fetch user profile
   const fetchUserProfile = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      if (!token) return;
+      if (!token) {
+        console.log('No auth token found');
+        return;
+      }
 
       const response = await fetch('/api/user/profile', {
-        headers: { 'Authorization': `Bearer ${token}` },
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store',
       });
 
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
+        console.log('Profile data:', data);
+        
+        if (data.success && data.user) {
           setUserProfile({
             uid: data.user.uid,
             emailMasked: data.user.emailMasked,
@@ -515,31 +473,47 @@ export default function AssetsDashboard() {
             avatar: data.user.avatar,
           });
         }
+      } else {
+        const errorData = await response.json();
+        console.error('Profile fetch failed:', response.status, errorData);
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
   };
 
-  // Fetch balances from API (which gets from Prisma)
+  // Fetch balances
   const fetchBalances = async () => {
     try {
       const token = localStorage.getItem('auth_token');
-      if (!token) return;
+      if (!token) {
+        console.log('No auth token for balances');
+        return;
+      }
 
       const response = await fetch('/api/user/balances', {
-        headers: { 'Authorization': `Bearer ${token}` },
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        cache: 'no-store',
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Balances data:', data);
+        
         if (data.success) {
           setBalances(data.balances || []);
-          setFundingTotal(data.summary?.fundingUsdValue || data.funding?.summary?.totalUsdValue || 0);
-          setUnifiedTradingTotal(data.summary?.unifiedTradingUsdValue || data.unifiedTrading?.summary?.totalUsdValue || 0);
+          setFundingTotal(data.summary?.fundingUsdValue || 0);
+          setUnifiedTradingTotal(data.summary?.unifiedTradingUsdValue || 0);
           setTotalUsdValue(data.summary?.totalUsdValue || 0);
           setBtcValue(data.summary?.btcValue || 0);
         }
+      } else {
+        const errorData = await response.json();
+        console.error('Balance fetch failed:', response.status, errorData);
       }
     } catch (error) {
       console.error('Error fetching balances:', error);
@@ -557,25 +531,6 @@ export default function AssetsDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  // Recalculate USD values when prices update
-  useEffect(() => {
-    if (Object.keys(prices).length > 0 && balances.length > 0) {
-      let total = 0;
-      const updatedBalances = balances.map(b => {
-        const price = prices[b.currency]?.price || b.price || 0;
-        const usdValue = b.totalBalance * price;
-        total += usdValue;
-        return { ...b, usdValue, price };
-      });
-      setBalances(updatedBalances);
-      setTotalUsdValue(total);
-      setFundingTotal(total);
-      const btcPrice = prices['BTC']?.price || 87000;
-      setBtcValue(total / btcPrice);
-    }
-  }, [prices]);
-
-  // Save currency to localStorage when changed
   const handleCurrencySelect = (code: string) => {
     setSelectedCurrency(code);
     localStorage.setItem(CURRENCY_STORAGE_KEY, code);
@@ -592,9 +547,7 @@ export default function AssetsDashboard() {
 
   const navigateWithLoading = (path: string) => {
     setNavLoading(true);
-    setTimeout(() => {
-      router.push(path);
-    }, 500);
+    setTimeout(() => router.push(path), 500);
   };
 
   const handleManageSubaccount = () => {
@@ -618,7 +571,7 @@ export default function AssetsDashboard() {
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white pb-20">
       <div className="p-4">
-        {/* Header - Click to open Switch Account Modal */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <button 
             onClick={() => setShowSwitchAccountModal(true)}
@@ -632,7 +585,7 @@ export default function AssetsDashboard() {
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-white text-sm">{userProfile?.emailMasked || 'ais***@****'}</span>
+              <span className="text-white text-sm">{userProfile?.emailMasked || 'user***@****'}</span>
               <ChevronDown className="w-4 h-4 text-white" />
             </div>
           </button>
@@ -644,7 +597,7 @@ export default function AssetsDashboard() {
           </button>
         </div>
 
-        {/* Balance Section - With selected fiat currency */}
+        {/* Balance Section */}
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[#71757f] text-sm">Total Assets</span>
@@ -677,7 +630,7 @@ export default function AssetsDashboard() {
           </div>
         </div>
 
-        {/* Available / In Use - With selected fiat currency */}
+        {/* Available / In Use */}
         <div className="flex gap-3 mb-4">
           <div className="flex-1 bg-[#1a1a1a] rounded-lg p-3">
             <div className="text-[#71757f] text-xs mb-1">Available balance</div>
@@ -688,7 +641,7 @@ export default function AssetsDashboard() {
           <div className="flex-1 bg-[#1a1a1a] rounded-lg p-3">
             <div className="text-[#71757f] text-xs mb-1">In Use</div>
             <div className="text-white text-base font-semibold">
-              {showBalance ? `0.00 ${selectedCurrency}` : '******'}
+              {showBalance ? `${convertToFiat(unifiedTradingTotal)} ${selectedCurrency}` : '******'}
             </div>
           </div>
         </div>
@@ -760,7 +713,7 @@ export default function AssetsDashboard() {
           </button>
         </div>
 
-        {/* Account Tab - With selected fiat currency */}
+        {/* Account Tab */}
         {activeTab === 'Account' && (
           <div className="space-y-1">
             <button 
@@ -791,17 +744,16 @@ export default function AssetsDashboard() {
           </div>
         )}
 
-        {/* Asset Tab - With selected fiat currency and comma formatting */}
+        {/* Asset Tab */}
         {activeTab === 'Asset' && (
           <div className="space-y-1">
             {balances.length > 0 ? (
-              balances.map((balance) => {
-                // Convert USD value to selected fiat
+              balances.map((balance, index) => {
                 const fiatValue = balance.usdValue * fiatRate;
                 
                 return (
                   <button
-                    key={`${balance.currency}-${balance.chain}`}
+                    key={`${balance.currency}-${index}`}
                     onClick={() => handleCoinClick(balance.currency)}
                     className="w-full flex items-center justify-between py-4 hover:bg-[#1a1a1a] rounded-lg px-2 transition-colors"
                   >
@@ -815,11 +767,9 @@ export default function AssetsDashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      {/* Crypto balance with comma formatting */}
                       <div className="text-white text-sm font-medium">
                         {showBalance ? formatCryptoBalance(balance.totalBalance) : '****'}
                       </div>
-                      {/* Fiat value in selected currency with comma formatting */}
                       <div className="text-[#71757f] text-xs">
                         ≈ {showBalance ? `${formatWithCommas(fiatValue, 2)} ${selectedCurrency}` : '****'}
                       </div>
@@ -862,7 +812,7 @@ export default function AssetsDashboard() {
         </div>
       </div>
 
-      {/* Switch/Create Account Modal */}
+      {/* Modals */}
       <SwitchAccountModal
         isOpen={showSwitchAccountModal}
         onClose={() => setShowSwitchAccountModal(false)}
@@ -877,7 +827,6 @@ export default function AssetsDashboard() {
         onCreateClick={handleCreateSubaccount}
       />
 
-      {/* Deposit Modal */}
       <DepositModal 
         isOpen={showDepositModal}
         onClose={() => setShowDepositModal(false)}
