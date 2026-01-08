@@ -1,8 +1,6 @@
 // app/api/bybit/instruments/route.js
 
-// Tell Next.js this can be statically generated
-export const dynamic = 'force-static';
-export const revalidate = false;
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
@@ -13,11 +11,21 @@ export async function GET() {
         headers: {
           'Content-Type': 'application/json',
         },
+        cache: 'no-store',
       }
     );
+
+    if (!response.ok) {
+      throw new Error(`Bybit API error: ${response.status}`);
+    }
     
     const data = await response.json();
-    return Response.json(data);
+    
+    return Response.json(data, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+      },
+    });
   } catch (error) {
     console.error('Error fetching instruments:', error);
     return Response.json(
