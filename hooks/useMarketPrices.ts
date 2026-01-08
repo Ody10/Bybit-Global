@@ -1,4 +1,4 @@
-//useMarketPrices.ts
+//hooks/useMarketPrices.ts
 
 'use client';
 
