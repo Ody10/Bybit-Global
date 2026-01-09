@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'online.bybitglobal.app',
-  appName: 'Bybit Global',
+  appName: 'Bybit',
   webDir: 'public',
   server: {
     url: 'https://bybit-global.vercel.app',
