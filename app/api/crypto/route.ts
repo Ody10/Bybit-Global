@@ -1,13 +1,14 @@
 // app/api/crypto/route.ts
+
 export const dynamic = 'force-dynamic';
-export const maxDuration = 10; // Add this
+export const maxDuration = 10;
 
 export async function GET() {
   try {
     console.log('Attempting to fetch from Bybit API...');
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     
     const response = await fetch(
       'https://api.bybit.com/v5/market/tickers?category=spot',
@@ -30,16 +31,18 @@ export async function GET() {
     }
     
     const data = await response.json();
+    console.log('Successfully fetched data, symbols count:', data?.result?.list?.length);
     
     return Response.json(data, {
       headers: {
         'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=30',
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching crypto data:', error);
     
-    if (error.name === 'AbortError') {
+    // Check if it's an AbortError (timeout)
+    if (error instanceof Error && error.name === 'AbortError') {
       return Response.json(
         { retCode: -1, retMsg: 'Request timeout' },
         { status: 504 }
