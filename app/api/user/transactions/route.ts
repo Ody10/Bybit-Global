@@ -4,7 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 
-const prisma = new PrismaClient();
+// Force dynamic rendering - IMPORTANT!
+export const dynamic = 'force-dynamic';
+
+// Use a singleton Prisma instance to avoid connection issues
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const prisma = globalForPrisma.prisma || new PrismaClient();
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +30,7 @@ export async function GET(request: NextRequest) {
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     } catch (error) {
+      console.error('JWT verification failed:', error);
       return NextResponse.json(
         { success: false, error: 'Unauthorized - Invalid token' },
         { status: 401 }
@@ -57,12 +64,17 @@ export async function GET(request: NextRequest) {
         depositWhere.status = status;
       }
       
-      deposits = await prisma.deposit.findMany({
-        where: depositWhere,
-        orderBy: { createdAt: 'desc' },
-        take: type ? limit : Math.ceil(limit / 2),
-        skip: type ? skip : 0,
-      });
+      try {
+        deposits = await prisma.deposit.findMany({
+          where: depositWhere,
+          orderBy: { createdAt: 'desc' },
+          take: type ? limit : Math.ceil(limit / 2),
+          skip: type ? skip : 0,
+        });
+      } catch (error) {
+        console.error('Error fetching deposits:', error);
+        // Continue even if deposits fail
+      }
     }
 
     // Get withdrawals if type is 'WITHDRAWAL' or 'WITHDRAW' or not specified
@@ -75,12 +87,17 @@ export async function GET(request: NextRequest) {
         withdrawalWhere.status = status;
       }
       
-      withdrawals = await prisma.withdrawal.findMany({
-        where: withdrawalWhere,
-        orderBy: { createdAt: 'desc' },
-        take: type ? limit : Math.ceil(limit / 2),
-        skip: type ? skip : 0,
-      });
+      try {
+        withdrawals = await prisma.withdrawal.findMany({
+          where: withdrawalWhere,
+          orderBy: { createdAt: 'desc' },
+          take: type ? limit : Math.ceil(limit / 2),
+          skip: type ? skip : 0,
+        });
+      } catch (error) {
+        console.error('Error fetching withdrawals:', error);
+        // Continue even if withdrawals fail
+      }
     }
 
     // Get other transactions (transfers, etc.) if type matches or not specified
@@ -96,12 +113,17 @@ export async function GET(request: NextRequest) {
         transactionWhere.status = status;
       }
 
-      transactions = await prisma.transaction.findMany({
-        where: transactionWhere,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      });
+      try {
+        transactions = await prisma.transaction.findMany({
+          where: transactionWhere,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        });
+      } catch (error) {
+        console.error('Error fetching transactions:', error);
+        // Continue even if transactions fail
+      }
     }
 
     // Format deposits
@@ -197,11 +219,19 @@ export async function GET(request: NextRequest) {
       : allRecords.slice(0, limit);
 
     // Get total counts for pagination
-    const [depositCount, withdrawalCount, transactionCount] = await Promise.all([
-      prisma.deposit.count({ where: baseWhere }),
-      prisma.withdrawal.count({ where: baseWhere }),
-      prisma.transaction.count({ where: baseWhere }),
-    ]);
+    let depositCount = 0;
+    let withdrawalCount = 0;
+    let transactionCount = 0;
+
+    try {
+      [depositCount, withdrawalCount, transactionCount] = await Promise.all([
+        prisma.deposit.count({ where: baseWhere }),
+        prisma.withdrawal.count({ where: baseWhere }),
+        prisma.transaction.count({ where: baseWhere }),
+      ]);
+    } catch (error) {
+      console.error('Error getting counts:', error);
+    }
 
     const totalCount = depositCount + withdrawalCount + transactionCount;
 
@@ -223,7 +253,11 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Transactions API Error:', error);
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { 
+        success: false, 
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      },
       { status: 500 }
     );
   }
