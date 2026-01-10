@@ -1,3 +1,5 @@
+//app/TradeDashboard/page.tsx
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -67,7 +69,7 @@ export default function TradeDashboard() {
 
   const fetchTradingPairs = async () => {
     try {
-      const response = await fetch('/api/bybit/instruments');
+      const response = await fetch('https://api.bybit.com/v5/market/instruments-info?category=spot');
       const data = await response.json();
       
       if (data.retCode === 0) {
@@ -87,7 +89,7 @@ export default function TradeDashboard() {
 
   const fetchOrderBook = async () => {
     try {
-      const response = await fetch(`/api/bybit/orderbook?symbol=${selectedPair}`);
+      const response = await fetch(`https://api.bybit.com/v5/market/orderbook?category=spot&symbol=${selectedPair}`);
       const data = await response.json();
       
       if (data.retCode === 0) {
@@ -110,7 +112,7 @@ export default function TradeDashboard() {
 
   const fetchTicker = async () => {
     try {
-      const response = await fetch(`/api/bybit/ticker?symbol=${selectedPair}`);
+      const response = await fetch(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${selectedPair}`);
       const data = await response.json();
       
       if (data.retCode === 0 && data.result.list.length > 0) {
