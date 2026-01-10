@@ -60,7 +60,7 @@ const formatWithCommas = (value: number, decimals: number = 2): string => {
   });
 };
 
-// Format price helper
+// Format price helper - WITH COMMAS like MarketsDashboard
 const formatPrice = (price: number): string => {
   if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (price >= 1) return price.toFixed(4);
@@ -434,7 +434,7 @@ export default function BybitDashboard() {
     setShowCurrencyModal(false);
   };
 
-  // ✅ FIXED: Fetch market prices DIRECTLY from Bybit API
+  // ✅ FIXED: Fetch market prices using TURNOVER sorting like MarketsDashboard
   const fetchMarketPrices = async () => {
     try {
       console.log('🔄 [BybitDashboard] Fetching market prices from Bybit...');
@@ -457,6 +457,7 @@ export default function BybitDashboard() {
             price: parseFloat(ticker.lastPrice || '0'),
             change24h: parseFloat(ticker.price24hPcnt || '0') * 100,
             volume24h: parseFloat(ticker.volume24h || '0'),
+            turnover24h: parseFloat(ticker.turnover24h || '0'), // ✅ CRITICAL: Capture turnover
             high24h: parseFloat(ticker.highPrice24h || '0'),
             low24h: parseFloat(ticker.lowPrice24h || '0'),
           };
@@ -472,7 +473,7 @@ export default function BybitDashboard() {
     }
   };
 
-  // Transform prices to crypto data array
+  // ✅ FIXED: Transform prices to crypto data array - SORT BY TURNOVER like MarketsDashboard
   const cryptoData = Object.entries(prices)
     .filter(([symbol]) => !['USDT', 'USDC', 'USCT', 'DAI', 'BUSD'].includes(symbol))
     .map(([symbol, data]) => ({
@@ -481,10 +482,11 @@ export default function BybitDashboard() {
       price: data.price,
       change: data.change24h,
       volume: data.volume24h,
+      turnover: data.turnover24h, // ✅ CRITICAL: Include turnover
       high24h: data.high24h,
       low24h: data.low24h,
     }))
-    .sort((a, b) => b.volume - a.volume)
+    .sort((a, b) => b.turnover - a.turnover) // ✅ CRITICAL FIX: Sort by TURNOVER not volume
     .slice(0, 20);
 
   const banners = [
@@ -617,7 +619,7 @@ export default function BybitDashboard() {
       await Promise.all([
         fetchUserProfile(), 
         fetchUserBalance(), 
-        fetchMarketPrices() // ✅ FIXED: Now fetches directly from Bybit
+        fetchMarketPrices() // ✅ FIXED: Now fetches and sorts by turnover
       ]);
       setLoading(false);
       console.log('✅ [BybitDashboard] Initialization complete');
@@ -649,7 +651,7 @@ export default function BybitDashboard() {
     return () => {
       clearInterval(bannerInterval);
       clearInterval(balanceInterval);
-      clearInterval(pricesInterval); // ✅ Clean up prices interval
+      clearInterval(pricesInterval);
     };
   }, []);
 
@@ -736,8 +738,8 @@ export default function BybitDashboard() {
       </div>
     </div>
   );
-
-  // Continue with JSX/UI Render in Part 3
+  
+  // Continue with JSX/UI Render
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white pb-20">
       {navLoading && <LoadingSpinner />}
@@ -920,7 +922,7 @@ export default function BybitDashboard() {
             ))}
           </div>
 
-          {/* Crypto List - Real-time prices */}
+          {/* Crypto List - ✅ FIXED: Now sorted by turnover with commas in prices */}
           <div className="space-y-2 mb-6">
             {cryptoData.map((crypto) => (
               <div 
