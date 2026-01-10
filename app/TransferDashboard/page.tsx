@@ -24,6 +24,7 @@ const coinNames: Record<string, string> = {
   BTC: 'Bitcoin',
   ETH: 'Ethereum',
   USDT: 'Tether USDT',
+  USCT: 'Tesel Coin',
   USDC: 'USD Coin',
   XRP: 'XRP',
   SOL: 'Solana',
@@ -198,28 +199,68 @@ export default function TransferDashboard() {
     fetchCoins();
   }, []);
 
-  // ✅ UPDATED: Fetch coins with real balances from database
+  // ✅ FIXED: Use existing /api/user/balances with JWT auth
   const fetchCoins = async () => {
     try {
       console.log('🔄 Fetching coins and balances...');
       
+      // Get JWT token from localStorage (same as AssetsDashboard)
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.log('⚠️ No auth token found');
+      }
+
       // Fetch market data from Bybit
       const marketResponse = await fetch('https://api.bybit.com/v5/market/tickers?category=spot', {
         cache: 'no-store'
       });
       const marketData = await marketResponse.json();
 
-      // Fetch user balances from database
-      const balancesResponse = await fetch('/api/user/coin-balances?userId=4000000001');
-      const balancesData = await balancesResponse.json();
-      const userBalances = balancesData.balances || {};
+      // Fetch user balances from existing API (with JWT auth)
+      let userBalances: Record<string, { balance: number; usdValue: number }> = {};
+      
+      if (token) {
+        try {
+          const balancesResponse = await fetch('/api/user/balances', {
+            method: 'GET',
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            cache: 'no-store',
+          });
 
-      console.log('📊 User has balances for', Object.keys(userBalances).length, 'coins');
-      console.log('💰 Balances:', userBalances);
+          if (balancesResponse.ok) {
+            const balancesData = await balancesResponse.json();
+            console.log('📊 Balances data:', balancesData);
+            
+            if (balancesData.success && balancesData.balances) {
+              // Convert array to map
+              balancesData.balances.forEach((bal: any) => {
+                userBalances[bal.currency] = {
+                  balance: bal.totalBalance,
+                  usdValue: bal.usdValue,
+                };
+              });
+            }
+          } else {
+            console.error('❌ Balance fetch failed:', balancesResponse.status);
+          }
+        } catch (error) {
+          console.error('❌ Error fetching balances:', error);
+        }
+      }
+
+      console.log('💰 User balances:', userBalances);
+      console.log('📊 Has balances for', Object.keys(userBalances).length, 'coins');
+
+      // Popular/essential coins that should always be included
+      const popularCoins = ['BTC', 'ETH', 'USDT', 'USDC', 'USCT', 'XRP', 'SOL', 'DOGE', 'DOT', 'TRX', 'MNT', 'X', 'BAN', 'HMSTR', 'ADA', 'AVAX', 'LINK', 'MATIC', 'UNI', 'ATOM', 'LTC'];
 
       if (marketData.result?.list) {
         const coinMap = new Map<string, CoinData>();
 
+        // First, extract base coins from trading pairs
         marketData.result.list.forEach((ticker: Ticker) => {
           const symbol = ticker.symbol
             .replace(/USDT$/, '')
@@ -240,9 +281,24 @@ export default function TransferDashboard() {
           }
         });
 
-        // Sort: coins with balance first, then popular coins, then alphabetically
+        // Add popular coins if they're missing (including USDT, USDC, etc.)
+        popularCoins.forEach(symbol => {
+          if (!coinMap.has(symbol)) {
+            const balance = userBalances[symbol]?.balance || 0;
+            const usdValue = userBalances[symbol]?.usdValue || 0;
+            
+            coinMap.set(symbol, {
+              symbol,
+              name: coinNames[symbol] || symbol,
+              balance: balance,
+              usdValue: `≈$ ${usdValue.toFixed(2)}`,
+            });
+          }
+        });
+
+        // Sort: coins with balance first (descending), then popular coins, then alphabetically
         const sortedCoins = Array.from(coinMap.values()).sort((a, b) => {
-          // First priority: coins with balance (descending)
+          // First priority: coins with balance (higher balance first)
           if (a.balance > 0 && b.balance === 0) return -1;
           if (a.balance === 0 && b.balance > 0) return 1;
           if (a.balance > 0 && b.balance > 0) {
@@ -265,6 +321,7 @@ export default function TransferDashboard() {
 
         console.log('✅ Loaded', sortedCoins.length, 'coins');
         console.log('💰 Coins with balance:', sortedCoins.filter(c => c.balance > 0).length);
+        console.log('🔝 First 10 coins:', sortedCoins.slice(0, 10).map(c => `${c.symbol} (${c.balance})`));
 
         setCoins(sortedCoins);
       }

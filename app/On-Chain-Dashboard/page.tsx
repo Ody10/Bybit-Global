@@ -1,3 +1,5 @@
+//On-Chain-Dashboard/page.tsx
+
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
@@ -17,13 +19,16 @@ function OnChainDashboardContent() {
   const [amount, setAmount] = useState('');
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<'funding' | 'unified' | null>(null);
+  
+  // ✅ NEW: State for real balances
+  const [loading, setLoading] = useState(true);
+  const [fundingBalance, setFundingBalance] = useState(0);
+  const [unifiedBalance, setUnifiedBalance] = useState(0);
 
   // Mock data - would come from API in real app
   const minWithdrawal = 2;
   const withdrawalFee = 0.5;
   const dailyLimit = '1,000,000/1,000,000';
-  const fundingBalance = 0;
-  const unifiedBalance = 0;
   const contractAddress = 'Ending with vaulta';
 
   // Available networks for the coin
@@ -33,6 +38,61 @@ function OnChainDashboardContent() {
     { id: 'trc20', name: 'TRC20', fee: '0.2' },
     { id: 'sol', name: 'Solana', fee: '0.1' },
   ];
+
+  // ✅ NEW: Fetch balances from API
+  useEffect(() => {
+    const fetchBalances = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          console.log('⚠️ No auth token found');
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch('/api/user/balances', {
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          cache: 'no-store',
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📊 Balances data:', data);
+          
+          if (data.success) {
+            // Find the specific coin balance for both accounts
+            const fundingCoins = data.funding?.balances || [];
+            const unifiedCoins = data.unifiedTrading?.balances || [];
+            
+            // Find balance for the selected coin in Funding account
+            const fundingCoin = fundingCoins.find((b: any) => b.currency === coinSymbol);
+            setFundingBalance(fundingCoin?.available || 0);
+            
+            // Find balance for the selected coin in Unified Trading account
+            const unifiedCoin = unifiedCoins.find((b: any) => b.currency === coinSymbol);
+            setUnifiedBalance(unifiedCoin?.available || 0);
+            
+            console.log(`💰 ${coinSymbol} Balances:`, {
+              funding: fundingCoin?.available || 0,
+              unified: unifiedCoin?.available || 0,
+            });
+          }
+        } else {
+          console.error('❌ Balance fetch failed:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching balances:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBalances();
+  }, [coinSymbol]); // Re-fetch when coin changes
 
   const amountReceived = Math.max(0, parseFloat(amount || '0') - withdrawalFee);
 
@@ -45,6 +105,15 @@ function OnChainDashboardContent() {
     // Implement withdrawal logic
     console.log('Withdraw:', { coinSymbol, address, network, memo, amount, selectedAccount });
   };
+
+  // ✅ Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0d0d0d] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-yellow-500 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white">
@@ -183,7 +252,8 @@ function OnChainDashboardContent() {
               <span className="text-white">{coinSymbol}</span>
               <button
                 onClick={handleMaxClick}
-                className="text-[#f7a600] font-medium hover:text-[#ffb824]"
+                disabled={!selectedAccount}
+                className="text-[#f7a600] font-medium hover:text-[#ffb824] disabled:text-gray-600 disabled:cursor-not-allowed"
               >
                 Max
               </button>
@@ -191,17 +261,19 @@ function OnChainDashboardContent() {
           </div>
         </div>
 
-        {/* Select Account Section */}
+        {/* Select Account Section - ✅ NOW SHOWS REAL BALANCES */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-1">
-              <span className="text-gray-400 text-sm">Select account (0)</span>
+              <span className="text-gray-400 text-sm">
+                Select account ({(fundingBalance + unifiedBalance).toFixed(8)})
+              </span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </div>
             <div className="flex items-center gap-1 text-gray-400">
-              <span className="text-sm">0</span>
+              <span className="text-sm">{(fundingBalance + unifiedBalance).toFixed(8)}</span>
               <button className="text-gray-400">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
@@ -211,7 +283,7 @@ function OnChainDashboardContent() {
             </div>
           </div>
 
-          {/* Funding Account */}
+          {/* Funding Account - ✅ REAL BALANCE */}
           <label className="flex items-center justify-between py-3 cursor-pointer">
             <div className="flex items-center gap-3">
               <input
@@ -222,10 +294,10 @@ function OnChainDashboardContent() {
               />
               <span className="text-white">Funding</span>
             </div>
-            <span className="text-white">{fundingBalance}</span>
+            <span className="text-white">{fundingBalance.toFixed(8)}</span>
           </label>
 
-          {/* Unified Trading Account */}
+          {/* Unified Trading Account - ✅ REAL BALANCE */}
           <label className="flex items-center justify-between py-3 cursor-pointer">
             <div className="flex items-center gap-3">
               <input
@@ -236,7 +308,7 @@ function OnChainDashboardContent() {
               />
               <span className="text-white">Unified Trading</span>
             </div>
-            <span className="text-white">{unifiedBalance}</span>
+            <span className="text-white">{unifiedBalance.toFixed(8)}</span>
           </label>
         </div>
 
@@ -278,11 +350,11 @@ function OnChainDashboardContent() {
             <span className="text-[#f7a600] text-sm">Amount Received</span>
             <button className="text-[#f7a600] text-sm">Setting</button>
           </div>
-          <span className="text-white font-medium">{amountReceived} {coinSymbol}</span>
+          <span className="text-white font-medium">{amountReceived.toFixed(8)} {coinSymbol}</span>
         </div>
         <button
           onClick={handleWithdraw}
-          disabled={!address || !network || !amount || parseFloat(amount) < minWithdrawal}
+          disabled={!address || !network || !amount || parseFloat(amount) < minWithdrawal || !selectedAccount}
           className="w-full bg-[#f7a600] text-black font-semibold py-4 rounded-lg hover:bg-[#ffb824] transition-colors disabled:bg-[#4a3d1a] disabled:text-gray-500 disabled:cursor-not-allowed"
         >
           Withdraw
@@ -292,6 +364,7 @@ function OnChainDashboardContent() {
   );
 }
 
+// ✅ WRAPPER COMPONENT (REQUIRED!)
 export default function OnChainDashboard() {
   return (
     <Suspense fallback={
