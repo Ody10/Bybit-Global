@@ -28,12 +28,12 @@ const customTokens: CoinData[] = [
   {
     symbol: 'USCT',
     name: 'Tesel Coin',
-    isCustom: true,
+    isCustom: false,
   },
   {
     symbol: 'USDT',
     name: 'Tether USD',
-    isCustom: true,
+    isCustom: false,
   },
 ];
 
