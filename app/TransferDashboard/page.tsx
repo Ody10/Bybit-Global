@@ -1,4 +1,4 @@
-//TransferDashboard/page.tsx
+//app/TransferDashboard/page.tsx
 
 'use client';
 
@@ -198,17 +198,29 @@ export default function TransferDashboard() {
     fetchCoins();
   }, []);
 
+  // ✅ UPDATED: Fetch coins with real balances from database
   const fetchCoins = async () => {
     try {
-      const response = await fetch('https://api.bybit.com/v5/market/tickers?category=spot', {
-  cache: 'no-store'
-});
-      const data = await response.json();
+      console.log('🔄 Fetching coins and balances...');
+      
+      // Fetch market data from Bybit
+      const marketResponse = await fetch('https://api.bybit.com/v5/market/tickers?category=spot', {
+        cache: 'no-store'
+      });
+      const marketData = await marketResponse.json();
 
-      if (data.result?.list) {
+      // Fetch user balances from database
+      const balancesResponse = await fetch('/api/user/coin-balances?userId=4000000001');
+      const balancesData = await balancesResponse.json();
+      const userBalances = balancesData.balances || {};
+
+      console.log('📊 User has balances for', Object.keys(userBalances).length, 'coins');
+      console.log('💰 Balances:', userBalances);
+
+      if (marketData.result?.list) {
         const coinMap = new Map<string, CoinData>();
 
-        data.result.list.forEach((ticker: Ticker) => {
+        marketData.result.list.forEach((ticker: Ticker) => {
           const symbol = ticker.symbol
             .replace(/USDT$/, '')
             .replace(/USDC$/, '')
@@ -216,17 +228,28 @@ export default function TransferDashboard() {
             .replace(/ETH$/, '');
 
           if (symbol && !coinMap.has(symbol)) {
+            const balance = userBalances[symbol]?.balance || 0;
+            const usdValue = userBalances[symbol]?.usdValue || 0;
+            
             coinMap.set(symbol, {
               symbol,
               name: coinNames[symbol] || symbol,
-              balance: 0,
-              usdValue: '≈$ 0.00',
+              balance: balance,
+              usdValue: `≈$ ${usdValue.toFixed(2)}`,
             });
           }
         });
 
-        // Sort: popular coins first, then alphabetically
+        // Sort: coins with balance first, then popular coins, then alphabetically
         const sortedCoins = Array.from(coinMap.values()).sort((a, b) => {
+          // First priority: coins with balance (descending)
+          if (a.balance > 0 && b.balance === 0) return -1;
+          if (a.balance === 0 && b.balance > 0) return 1;
+          if (a.balance > 0 && b.balance > 0) {
+            return b.balance - a.balance; // Higher balance first
+          }
+          
+          // Second priority: popular coins
           const aPopular = popularCoins.indexOf(a.symbol);
           const bPopular = popularCoins.indexOf(b.symbol);
           
@@ -235,13 +258,18 @@ export default function TransferDashboard() {
           }
           if (aPopular !== -1) return -1;
           if (bPopular !== -1) return 1;
+          
+          // Third priority: alphabetically
           return a.symbol.localeCompare(b.symbol);
         });
+
+        console.log('✅ Loaded', sortedCoins.length, 'coins');
+        console.log('💰 Coins with balance:', sortedCoins.filter(c => c.balance > 0).length);
 
         setCoins(sortedCoins);
       }
     } catch (error) {
-      console.error('Failed to fetch coins:', error);
+      console.error('❌ Failed to fetch coins:', error);
     } finally {
       setLoading(false);
     }
