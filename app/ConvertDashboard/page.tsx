@@ -28,6 +28,7 @@ interface FiatData {
 // Map of coin symbols to their full names
 const coinNames: Record<string, string> = {
   USDT: 'Tether USDT',
+  USCT: 'Tesel Coin',
   BTC: 'Bitcoin',
   ETH: 'Ethereum',
   ARB: 'Arbitrum',
@@ -257,17 +258,69 @@ export default function ConvertDashboard() {
     fetchCoins();
   }, []);
 
+// ✅ FIXED: Use existing /api/user/balances with JWT auth
   const fetchCoins = async () => {
     try {
-      const response = await fetch('https://api.bybit.com/v5/market/tickers?category=spot', {
-  cache: 'no-store'
-});
-      const data = await response.json();
+      console.log('🔄 Fetching coins and balances...');
+      
+      // Get JWT token from localStorage (same as AssetsDashboard)
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        console.log('⚠️ No auth token found');
+      }
 
-      if (data.result?.list) {
+      // Fetch market data from Bybit
+      const marketResponse = await fetch('https://api.bybit.com/v5/market/tickers?category=spot', {
+        cache: 'no-store'
+      });
+      const marketData = await marketResponse.json();
+
+      // Fetch user balances from existing API (with JWT auth)
+      let userBalances: Record<string, { balance: number; usdValue: number }> = {};
+      
+      if (token) {
+        try {
+          const balancesResponse = await fetch('/api/user/balances', {
+            method: 'GET',
+            headers: { 
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            cache: 'no-store',
+          });
+
+          if (balancesResponse.ok) {
+            const balancesData = await balancesResponse.json();
+            console.log('📊 Balances data:', balancesData);
+            
+            if (balancesData.success && balancesData.balances) {
+              // Convert array to map
+              balancesData.balances.forEach((bal: any) => {
+                userBalances[bal.currency] = {
+                  balance: bal.totalBalance,
+                  usdValue: bal.usdValue,
+                };
+              });
+            }
+          } else {
+            console.error('❌ Balance fetch failed:', balancesResponse.status);
+          }
+        } catch (error) {
+          console.error('❌ Error fetching balances:', error);
+        }
+      }
+
+      console.log('💰 User balances:', userBalances);
+      console.log('📊 Has balances for', Object.keys(userBalances).length, 'coins');
+
+      // Popular/essential coins that should always be included
+      const popularCoins = ['BTC', 'ETH', 'USDT', 'USDC', 'USCT', 'XRP', 'SOL', 'DOGE', 'DOT', 'TRX', 'MNT', 'X', 'BAN', 'HMSTR', 'ADA', 'AVAX', 'LINK', 'MATIC', 'UNI', 'ATOM', 'LTC'];
+
+      if (marketData.result?.list) {
         const coinMap = new Map<string, CoinData>();
 
-        data.result.list.forEach((ticker: Ticker) => {
+        // First, extract base coins from trading pairs
+        marketData.result.list.forEach((ticker: Ticker) => {
           const symbol = ticker.symbol
             .replace(/USDT$/, '')
             .replace(/USDC$/, '')
@@ -275,17 +328,43 @@ export default function ConvertDashboard() {
             .replace(/ETH$/, '');
 
           if (symbol && !coinMap.has(symbol)) {
+            const balance = userBalances[symbol]?.balance || 0;
+            const usdValue = userBalances[symbol]?.usdValue || 0;
+            
             coinMap.set(symbol, {
               symbol,
               name: coinNames[symbol] || symbol,
-              balance: 0,
-              usdValue: '≈$ 0',
+              balance: balance,
+              usdValue: `≈$ ${usdValue.toFixed(2)}`,
             });
           }
         });
 
-        // Sort: popular coins first, then alphabetically
+        // Add popular coins if they're missing (including USDT, USDC, etc.)
+        popularCoins.forEach(symbol => {
+          if (!coinMap.has(symbol)) {
+            const balance = userBalances[symbol]?.balance || 0;
+            const usdValue = userBalances[symbol]?.usdValue || 0;
+            
+            coinMap.set(symbol, {
+              symbol,
+              name: coinNames[symbol] || symbol,
+              balance: balance,
+              usdValue: `≈$ ${usdValue.toFixed(2)}`,
+            });
+          }
+        });
+
+        // Sort: coins with balance first (descending), then popular coins, then alphabetically
         const sortedCoins = Array.from(coinMap.values()).sort((a, b) => {
+          // First priority: coins with balance (higher balance first)
+          if (a.balance > 0 && b.balance === 0) return -1;
+          if (a.balance === 0 && b.balance > 0) return 1;
+          if (a.balance > 0 && b.balance > 0) {
+            return b.balance - a.balance; // Higher balance first
+          }
+          
+          // Second priority: popular coins
           const aPopular = popularCoins.indexOf(a.symbol);
           const bPopular = popularCoins.indexOf(b.symbol);
           
@@ -294,13 +373,19 @@ export default function ConvertDashboard() {
           }
           if (aPopular !== -1) return -1;
           if (bPopular !== -1) return 1;
+          
+          // Third priority: alphabetically
           return a.symbol.localeCompare(b.symbol);
         });
+
+        console.log('✅ Loaded', sortedCoins.length, 'coins');
+        console.log('💰 Coins with balance:', sortedCoins.filter(c => c.balance > 0).length);
+        console.log('🔝 First 10 coins:', sortedCoins.slice(0, 10).map(c => `${c.symbol} (${c.balance})`));
 
         setCoins(sortedCoins);
       }
     } catch (error) {
-      console.error('Failed to fetch coins:', error);
+      console.error('❌ Failed to fetch coins:', error);
     } finally {
       setLoading(false);
     }
