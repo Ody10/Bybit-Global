@@ -45,7 +45,7 @@ export default function EarnDashboard() {
 
   const fetchEarnProducts = async () => {
     try {
-      const instrumentsRes = await fetch('/api/bybit/instruments');
+      const instrumentsRes = await fetch('https://api.bybit.com/v5/market/instruments-info?category=spot');
       const instrumentsData = await instrumentsRes.json();
       
       if (instrumentsData.retCode === 0) {

@@ -6,7 +6,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Bell, Search, Eye, EyeOff, ChevronDown, ChevronRight, ScanLine, X, Home, BarChart2, ArrowLeftRight, DollarSign, Wallet, ArrowDownLeft, RefreshCw, Check } from 'lucide-react';
 import Image from 'next/image';
-import { useMarketPrices, formatPrice, formatVolume } from '@/hooks/useMarketPrices';
 
 // Storage key for persistent currency
 const CURRENCY_STORAGE_KEY = 'selected_fiat_currency';
@@ -59,6 +58,22 @@ const formatWithCommas = (value: number, decimals: number = 2): string => {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+};
+
+// Format price helper - WITH COMMAS like MarketsDashboard
+const formatPrice = (price: number): string => {
+  if (price >= 1000) return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (price >= 1) return price.toFixed(4);
+  if (price >= 0.0001) return price.toFixed(6);
+  return price.toFixed(8);
+};
+
+// Format volume helper
+const formatVolume = (volume: number): string => {
+  if (volume >= 1000000000) return (volume / 1000000000).toFixed(2) + 'B';
+  if (volume >= 1000000) return (volume / 1000000).toFixed(2) + 'M';
+  if (volume >= 1000) return (volume / 1000).toFixed(2) + 'K';
+  return volume.toFixed(2);
 };
 
 // Notification data
@@ -392,8 +407,9 @@ export default function BybitDashboard() {
   const [totalBalance, setTotalBalance] = useState(0);
   const [todayPnL, setTodayPnL] = useState(0);
 
-  // Use market prices hook - updates every 1 second for live feel
-  const { prices, loading: pricesLoading } = useMarketPrices(1000);
+  // Market prices state - DIRECT from Bybit
+  const [prices, setPrices] = useState<Record<string, any>>({});
+  const [pricesLoading, setPricesLoading] = useState(true);
 
   // Get fiat rate
   const fiatRate = getCurrencyRate(selectedCurrency);
@@ -418,7 +434,46 @@ export default function BybitDashboard() {
     setShowCurrencyModal(false);
   };
 
-  // Transform prices to crypto data array
+  // ✅ FIXED: Fetch market prices using TURNOVER sorting like MarketsDashboard
+  const fetchMarketPrices = async () => {
+    try {
+      console.log('🔄 [BybitDashboard] Fetching market prices from Bybit...');
+      const response = await fetch('https://api.bybit.com/v5/market/tickers?category=spot', {
+        cache: 'no-store'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Bybit API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.retCode === 0 && data.result?.list) {
+        const pricesMap: Record<string, any> = {};
+        
+        data.result.list.forEach((ticker: any) => {
+          const symbol = ticker.symbol.replace('USDT', '').replace('USDC', '');
+          pricesMap[symbol] = {
+            price: parseFloat(ticker.lastPrice || '0'),
+            change24h: parseFloat(ticker.price24hPcnt || '0') * 100,
+            volume24h: parseFloat(ticker.volume24h || '0'),
+            turnover24h: parseFloat(ticker.turnover24h || '0'), // ✅ CRITICAL: Capture turnover
+            high24h: parseFloat(ticker.highPrice24h || '0'),
+            low24h: parseFloat(ticker.lowPrice24h || '0'),
+          };
+        });
+        
+        setPrices(pricesMap);
+        console.log('✅ [BybitDashboard] Market prices loaded:', Object.keys(pricesMap).length, 'pairs');
+      }
+      setPricesLoading(false);
+    } catch (error) {
+      console.error('❌ [BybitDashboard] Error fetching market prices:', error);
+      setPricesLoading(false);
+    }
+  };
+
+  // ✅ FIXED: Transform prices to crypto data array - SORT BY TURNOVER like MarketsDashboard
   const cryptoData = Object.entries(prices)
     .filter(([symbol]) => !['USDT', 'USDC', 'USCT', 'DAI', 'BUSD'].includes(symbol))
     .map(([symbol, data]) => ({
@@ -427,10 +482,11 @@ export default function BybitDashboard() {
       price: data.price,
       change: data.change24h,
       volume: data.volume24h,
+      turnover: data.turnover24h, // ✅ CRITICAL: Include turnover
       high24h: data.high24h,
       low24h: data.low24h,
     }))
-    .sort((a, b) => b.volume - a.volume)
+    .sort((a, b) => b.turnover - a.turnover) // ✅ CRITICAL FIX: Sort by TURNOVER not volume
     .slice(0, 20);
 
   const banners = [
@@ -441,10 +497,6 @@ export default function BybitDashboard() {
     { id: 5, image: '/Events/event5.png', title: 'Christmas Season', subtitle: 'Earn from a 25,000 USDT prize pool', category: 'Fiat & Pay' },
     { id: 6, image: '/Events/event6.png', title: 'Predict MNT', subtitle: 'Make your prediction now', category: 'Events' }
   ];
-
-  // ============================================
-  // FIXED API FETCHING WITH PROPER ERROR HANDLING
-  // ============================================
   
   // Fetch user profile with improved error handling
   const fetchUserProfile = async () => {
@@ -564,7 +616,11 @@ export default function BybitDashboard() {
     // Initial load with proper async handling
     const init = async () => {
       console.log('🚀 [BybitDashboard] Initializing...');
-      await Promise.all([fetchUserProfile(), fetchUserBalance()]);
+      await Promise.all([
+        fetchUserProfile(), 
+        fetchUserBalance(), 
+        fetchMarketPrices() // ✅ FIXED: Now fetches and sorts by turnover
+      ]);
       setLoading(false);
       console.log('✅ [BybitDashboard] Initialization complete');
     };
@@ -585,10 +641,17 @@ export default function BybitDashboard() {
       console.log('🔄 [BybitDashboard] Auto-refreshing balance...');
       fetchUserBalance();
     }, 30000);
+
+    // ✅ FIXED: Refresh market prices every 3 seconds (real-time feel)
+    const pricesInterval = setInterval(() => {
+      console.log('🔄 [BybitDashboard] Auto-refreshing market prices...');
+      fetchMarketPrices();
+    }, 3000);
     
     return () => {
       clearInterval(bannerInterval);
       clearInterval(balanceInterval);
+      clearInterval(pricesInterval);
     };
   }, []);
 
@@ -675,10 +738,8 @@ export default function BybitDashboard() {
       </div>
     </div>
   );
-
-  // Continue with rest of the component in next part//
-  // part 3 - JSX/UI Render
-
+  
+  // Continue with JSX/UI Render
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white pb-20">
       {navLoading && <LoadingSpinner />}
@@ -861,7 +922,7 @@ export default function BybitDashboard() {
             ))}
           </div>
 
-          {/* Crypto List - Real-time prices */}
+          {/* Crypto List - ✅ FIXED: Now sorted by turnover with commas in prices */}
           <div className="space-y-2 mb-6">
             {cryptoData.map((crypto) => (
               <div 
@@ -892,8 +953,8 @@ export default function BybitDashboard() {
               </div>
             ))}
           </div>
-
-          {/* More Button */}
+		  
+		  {/* More Button */}
           <button className="w-full py-3 text-center text-[#f7a600] hover:text-[#e09500] flex items-center justify-center gap-2 mb-6">
             More <ChevronRight className="w-4 h-4" />
           </button>

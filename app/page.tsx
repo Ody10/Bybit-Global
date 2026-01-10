@@ -1,3 +1,5 @@
+//app/page.tsx 
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -314,7 +316,7 @@ export default function BybitAppGlobal() {
         </div>
       )}
 
-      {/* Crypto List with improved coin logos */}
+      {/* Crypto List - ✅ FIXED: Removed .toLowerCase() from image src */}
       <div className="px-4 space-y-2">
         {cryptoData.map((crypto, index) => {
           const isPositive = crypto.changeNum >= 0;
@@ -328,7 +330,7 @@ export default function BybitAppGlobal() {
                 <div className="flex items-center gap-3 flex-1">
                   <div className={`w-10 h-10 ${crypto.color} rounded-full flex items-center justify-center font-bold text-lg shadow-lg overflow-hidden`}>
                     <img 
-                      src={`/coins/${crypto.symbol.toLowerCase()}.png`}
+                      src={`/coins/${crypto.symbol}.png`}
                       alt={crypto.symbol}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -371,6 +373,7 @@ export default function BybitAppGlobal() {
           );
         })}
       </div>
+
       {/* Bottom Sign Up Button */}
       <div className="fixed bottom-20 left-0 right-0 px-4">
         <div className="flex items-center gap-3">

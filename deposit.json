@@ -1,8 +1,8 @@
 {
-  "walletAddress": "0x9554d2062628fe04eec96a6fecaa7828547aedd3",
+  "walletAddress": "0xf67df494d852329b38fb33ac2d6f7bc1e1eafd5b",
   "currency": "USDT",
   "chain": "ETH",
-  "amount": 100228.99,
-  "txHash": "0x6621e715bbd99bf0a03b7c4e9c9f7843239bf54da02d1e2ff8883e9beaf436f6",
+  "amount": 6700.63,
+  "txHash": "0x7c17b638fe5fb653cab858040c777d7bd3def0db3f87037a97f194fe9581d15e",
   "fromAddress": "0xE914A53fB88D12896169ddFAC561DfCa6964A00c"
 }

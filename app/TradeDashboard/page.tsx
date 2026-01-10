@@ -1,3 +1,5 @@
+//app/TradeDashboard/page.tsx
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -56,8 +58,9 @@ export default function TradeDashboard() {
     fetchOrderBook();
     fetchTicker();
     
-    const orderBookInterval = setInterval(fetchOrderBook, 2000);
-    const tickerInterval = setInterval(fetchTicker, 3000);
+    // ✅ FIXED: Faster refresh for more real-time feel
+    const orderBookInterval = setInterval(fetchOrderBook, 1500); // Was 2000
+    const tickerInterval = setInterval(fetchTicker, 2500); // Was 3000
     
     return () => {
       clearInterval(orderBookInterval);
@@ -67,7 +70,10 @@ export default function TradeDashboard() {
 
   const fetchTradingPairs = async () => {
     try {
-      const response = await fetch('/api/bybit/instruments');
+      console.log('📡 [TradeDashboard] Fetching trading pairs...');
+      const response = await fetch('https://api.bybit.com/v5/market/instruments-info?category=spot', {
+        cache: 'no-store'
+      });
       const data = await response.json();
       
       if (data.retCode === 0) {
@@ -79,39 +85,68 @@ export default function TradeDashboard() {
             quoteCoin: item.quoteCoin,
           }));
         setTradingPairs(usdtPairs);
+        console.log('✅ [TradeDashboard] Loaded', usdtPairs.length, 'trading pairs');
       }
     } catch (error) {
-      console.error('Error fetching pairs:', error);
+      console.error('❌ [TradeDashboard] Error fetching pairs:', error);
     }
   };
 
+  // ✅ CRITICAL FIX: Fetch more order book entries with proper depth parameter
   const fetchOrderBook = async () => {
     try {
-      const response = await fetch(`/api/bybit/orderbook?symbol=${selectedPair}`);
-      const data = await response.json();
+      console.log('📡 [TradeDashboard] Fetching order book for', selectedPair);
       
-      if (data.retCode === 0) {
+      // ✅ FIXED: Added limit=50 to get more entries (default is only 25)
+      const response = await fetch(
+        `https://api.bybit.com/v5/market/orderbook?category=spot&symbol=${selectedPair}&limit=50`,
+        { cache: 'no-store' }
+      );
+      
+      const data = await response.json();
+      console.log('📥 [TradeDashboard] Order book response:', data);
+      
+      if (data.retCode === 0 && data.result) {
         const book = data.result;
-        setOrderBook({
-          asks: book.a.slice(0, 12).map(([price, qty]: [string, string]) => ({
-            price: parseFloat(price),
-            quantity: parseFloat(qty),
-          })),
-          bids: book.b.slice(0, 12).map(([price, qty]: [string, string]) => ({
-            price: parseFloat(price),
-            quantity: parseFloat(qty),
-          }))
-        });
+        
+        // ✅ FIXED: Take more entries (20 each side instead of 12)
+        const asks = book.a?.slice(0, 20).map(([price, qty]: [string, string]) => ({
+          price: parseFloat(price),
+          quantity: parseFloat(qty),
+        })) || [];
+        
+        const bids = book.b?.slice(0, 20).map(([price, qty]: [string, string]) => ({
+          price: parseFloat(price),
+          quantity: parseFloat(qty),
+        })) || [];
+        
+        console.log('✅ [TradeDashboard] Order book loaded - Asks:', asks.length, 'Bids:', bids.length);
+        
+        // ✅ CRITICAL: Log if bids are empty to debug
+        if (bids.length === 0) {
+          console.error('⚠️ [TradeDashboard] WARNING: No bids received!');
+          console.error('Raw book.b data:', book.b);
+        }
+        
+        setOrderBook({ asks, bids });
+      } else {
+        console.error('❌ [TradeDashboard] Order book API error:', data);
       }
     } catch (error) {
-      console.error('Error fetching order book:', error);
+      console.error('❌ [TradeDashboard] Error fetching order book:', error);
     }
   };
 
   const fetchTicker = async () => {
     try {
-      const response = await fetch(`/api/bybit/ticker?symbol=${selectedPair}`);
+      console.log('📡 [TradeDashboard] Fetching ticker for', selectedPair);
+      const response = await fetch(
+        `https://api.bybit.com/v5/market/tickers?category=spot&symbol=${selectedPair}`,
+        { cache: 'no-store' }
+      );
+      
       const data = await response.json();
+      console.log('📥 [TradeDashboard] Ticker response:', data);
       
       if (data.retCode === 0 && data.result.list.length > 0) {
         const ticker = data.result.list[0];
@@ -120,21 +155,26 @@ export default function TradeDashboard() {
         setVolume(ticker.volume24h);
         setPrice(ticker.lastPrice);
         
+        // Mock balance calculation
         const mockBalance = 127143443.099;
         const priceInARS = parseFloat(ticker.lastPrice) * 1043;
         setMaxBuy((mockBalance / priceInARS).toFixed(6));
+        
+        console.log('✅ [TradeDashboard] Ticker loaded - Price:', ticker.lastPrice, 'Change:', (parseFloat(ticker.price24hPcnt) * 100).toFixed(2) + '%');
       }
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching ticker:', error);
+      console.error('❌ [TradeDashboard] Error fetching ticker:', error);
       setLoading(false);
     }
   };
 
+  // ✅ FIXED: Better price formatting with commas
   const formatPrice = (price: number | string): string => {
     const num = parseFloat(price.toString());
     if (isNaN(num)) return '0';
     if (num >= 10000) return num.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    if (num >= 1000) return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     if (num >= 1) return num.toFixed(1);
     return num.toFixed(4);
   };
@@ -193,7 +233,7 @@ export default function TradeDashboard() {
   if (loading) {
     return <SkeletonLoader />;
   }
-
+  
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-white pb-20 flex flex-col">
       {navLoading && <LoadingSpinner />}
@@ -325,7 +365,7 @@ export default function TradeDashboard() {
                 type="text"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="876571"
+                placeholder="90512.5"
                 className="w-full bg-[#1a1a1a] text-white text-lg font-semibold px-3 py-2.5 rounded-md pr-16 border border-[#2a2a2a]"
               />
               <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#71757f] text-sm font-medium">
@@ -333,7 +373,7 @@ export default function TradeDashboard() {
               </span>
             </div>
             <div className="text-[#71757f] text-xs mt-1">
-              ≈127,143,443.099 ARS
+              ≈{(parseFloat(price || '0') * 1043).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ARS
             </div>
           </div>
 
@@ -442,8 +482,12 @@ export default function TradeDashboard() {
 
           {/* Buy Button */}
           <div className="px-4 pb-3 bg-[#0d0d0d]">
-            <button className="w-full bg-[#0ecb81] hover:bg-[#0db872] text-white font-semibold py-3.5 rounded-md text-base transition-colors">
-              Buy
+            <button className={`w-full font-semibold py-3.5 rounded-md text-base transition-colors ${
+              side === 'Buy' 
+                ? 'bg-[#0ecb81] hover:bg-[#0db872] text-white' 
+                : 'bg-[#f6465d] hover:bg-[#e03d51] text-white'
+            }`}>
+              {side}
             </button>
           </div>
 
@@ -503,8 +547,8 @@ export default function TradeDashboard() {
             </div>
           </div>
         </div>
-
-        {/* Right Panel - Order Book */}
+		
+		{/* Right Panel - Order Book - ✅ FIXED */}
         <div className="w-[45%] border-l border-[#1e1e1e] bg-[#0d0d0d] overflow-y-auto">
           {/* Order Book Header */}
           <div className="sticky top-0 bg-[#0d0d0d] px-3 py-2 border-b border-[#1e1e1e]">
@@ -514,69 +558,81 @@ export default function TradeDashboard() {
             </div>
           </div>
 
-          {/* Asks */}
+          {/* ✅ FIXED: Asks - Now showing full depth */}
           <div className="space-y-px">
-            {orderBook.asks.slice().reverse().map((order, idx) => {
-              const maxQty = Math.max(
-                ...orderBook.asks.map(a => a.quantity),
-                ...orderBook.bids.map(b => b.quantity)
-              );
-              const percentage = (order.quantity / maxQty) * 100;
-              
-              return (
-                <div
-                  key={`ask-${idx}`}
-                  className="flex items-center justify-between px-3 py-0.5 text-[11px] hover:bg-[#1a1a1a] cursor-pointer relative overflow-hidden"
-                >
-                  <div 
-                    className="absolute right-0 top-0 bottom-0 bg-[#f6465d] opacity-10"
-                    style={{ width: `${percentage}%` }}
-                  />
-                  <span className="text-[#f6465d] z-10 relative">{formatPrice(order.price)}</span>
-                  <span className="text-[#71757f] z-10 relative">{formatQuantity(order.quantity)}</span>
-                </div>
-              );
-            })}
+            {orderBook.asks.length > 0 ? (
+              orderBook.asks.slice().reverse().map((order, idx) => {
+                const maxQty = Math.max(
+                  ...orderBook.asks.map(a => a.quantity),
+                  ...orderBook.bids.map(b => b.quantity)
+                );
+                const percentage = maxQty > 0 ? (order.quantity / maxQty) * 100 : 0;
+                
+                return (
+                  <div
+                    key={`ask-${idx}`}
+                    className="flex items-center justify-between px-3 py-0.5 text-[11px] hover:bg-[#1a1a1a] cursor-pointer relative overflow-hidden"
+                  >
+                    <div 
+                      className="absolute right-0 top-0 bottom-0 bg-[#f6465d] opacity-10"
+                      style={{ width: `${percentage}%` }}
+                    />
+                    <span className="text-[#f6465d] z-10 relative font-medium">{formatPrice(order.price)}</span>
+                    <span className="text-[#71757f] z-10 relative">{formatQuantity(order.quantity)}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-3 py-2 text-[#71757f] text-xs text-center">
+                Loading asks...
+              </div>
+            )}
           </div>
 
-          {/* Current Price */}
+          {/* Current Price - ✅ Enhanced */}
           <div className="sticky z-20 bg-[#0d0d0d] px-3 py-2 border-y border-[#1e1e1e]">
             <div className="flex items-center justify-between">
               <span className={`text-base font-semibold ${parseFloat(priceChange) >= 0 ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
                 {formatPrice(currentPrice)}
               </span>
               <span className="text-[10px] text-[#71757f]">
-                ≈127,143,443.099 ARS
+                ≈{(parseFloat(currentPrice) * 1043).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ARS
               </span>
             </div>
           </div>
 
-          {/* Bids */}
+          {/* ✅ FIXED: Bids - Now showing full depth */}
           <div className="space-y-px">
-            {orderBook.bids.map((order, idx) => {
-              const maxQty = Math.max(
-                ...orderBook.asks.map(a => a.quantity),
-                ...orderBook.bids.map(b => b.quantity)
-              );
-              const percentage = (order.quantity / maxQty) * 100;
-              
-              return (
-                <div
-                  key={`bid-${idx}`}
-                  className="flex items-center justify-between px-3 py-0.5 text-[11px] hover:bg-[#1a1a1a] cursor-pointer relative overflow-hidden"
-                >
-                  <div 
-                    className="absolute right-0 top-0 bottom-0 bg-[#0ecb81] opacity-10"
-                    style={{ width: `${percentage}%` }}
-                  />
-                  <span className="text-[#0ecb81] z-10 relative">{formatPrice(order.price)}</span>
-                  <span className="text-[#71757f] z-10 relative">{formatQuantity(order.quantity)}</span>
-                </div>
-              );
-            })}
+            {orderBook.bids.length > 0 ? (
+              orderBook.bids.map((order, idx) => {
+                const maxQty = Math.max(
+                  ...orderBook.asks.map(a => a.quantity),
+                  ...orderBook.bids.map(b => b.quantity)
+                );
+                const percentage = maxQty > 0 ? (order.quantity / maxQty) * 100 : 0;
+                
+                return (
+                  <div
+                    key={`bid-${idx}`}
+                    className="flex items-center justify-between px-3 py-0.5 text-[11px] hover:bg-[#1a1a1a] cursor-pointer relative overflow-hidden"
+                  >
+                    <div 
+                      className="absolute right-0 top-0 bottom-0 bg-[#0ecb81] opacity-10"
+                      style={{ width: `${percentage}%` }}
+                    />
+                    <span className="text-[#0ecb81] z-10 relative font-medium">{formatPrice(order.price)}</span>
+                    <span className="text-[#71757f] z-10 relative">{formatQuantity(order.quantity)}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="px-3 py-2 text-[#71757f] text-xs text-center">
+                Loading bids...
+              </div>
+            )}
           </div>
 
-          {/* Order Book Footer */}
+          {/* ✅ FIXED: Order Book Footer with Buy/Sell Ratio */}
           <div className="sticky bottom-0 bg-[#0d0d0d] px-3 py-3 border-t border-[#1e1e1e]">
             <div className="flex items-center justify-between mb-2">
               <button className="px-2 py-1 bg-[#1a1a1a] rounded text-[10px] text-[#71757f]">
@@ -588,15 +644,30 @@ export default function TradeDashboard() {
                 </button>
               </div>
             </div>
+            
+            {/* ✅ FIXED: Calculate and display buy/sell ratio */}
             <div className="flex items-center justify-center gap-3 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-[#0ecb81] rounded-sm"></div>
-                <span className="text-[#0ecb81]">23%</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-[#f6465d] rounded-sm"></div>
-                <span className="text-[#f6465d]">77%</span>
-              </div>
+              {(() => {
+                const totalBidQty = orderBook.bids.reduce((sum, bid) => sum + bid.quantity, 0);
+                const totalAskQty = orderBook.asks.reduce((sum, ask) => sum + ask.quantity, 0);
+                const total = totalBidQty + totalAskQty;
+                
+                const bidPercentage = total > 0 ? Math.round((totalBidQty / total) * 100) : 0;
+                const askPercentage = total > 0 ? Math.round((totalAskQty / total) * 100) : 0;
+                
+                return (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-[#0ecb81] rounded-sm"></div>
+                      <span className="text-[#0ecb81] font-medium">{bidPercentage}%</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-[#f6465d] rounded-sm"></div>
+                      <span className="text-[#f6465d] font-medium">{askPercentage}%</span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

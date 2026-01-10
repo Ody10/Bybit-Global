@@ -1,3 +1,5 @@
+//app/selectCoinDashboard/page.tsx
+
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -398,7 +400,9 @@ export default function SelectCoinDashboard() {
 
   const fetchCoins = async () => {
     try {
-      const response = await fetch('/api/market');
+      const response = await fetch('https://api.bybit.com/v5/market/tickers?category=spot', {
+  cache: 'no-store'
+});
       const data = await response.json();
 
       if (data.result?.list) {
